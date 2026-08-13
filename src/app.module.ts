@@ -15,6 +15,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { MailModule } from './modules/mail/mail.module';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
+import { UploadModule } from './modules/upload/upload.module';
 import { ExportModule } from './modules/export/export.module';
 import { HealthModule } from './modules/health/health.module';
 
@@ -71,6 +72,7 @@ import { HealthModule } from './modules/health/health.module';
     UsersModule,
     MailModule,
     CloudinaryModule,
+    UploadModule,
     ExportModule,
     HealthModule,
   ],

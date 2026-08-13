@@ -34,4 +34,9 @@ export const envValidationSchema = Joi.object({
   APP_USER_EMAIL: Joi.string().optional(),
   APP_PASSWORD: Joi.string().optional(),
   EMAIL_FROM: Joi.string().optional(),
+
+  AWS_S3_BUCKET_NAME: Joi.string().optional(),
+  AWS_ACCESS_KEY_ID: Joi.string().optional(),
+  AWS_SECRET_ACCESS_KEY: Joi.string().optional(),
+  AWS_REGION: Joi.string().optional(),
 });
