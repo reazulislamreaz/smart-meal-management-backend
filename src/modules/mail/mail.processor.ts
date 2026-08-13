@@ -18,23 +18,56 @@ export class MailProcessor extends WorkerHost {
 
   constructor(private readonly configService: ConfigService) {
     super();
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('SMTP_HOST') || 'smtp.mailtrap.io',
-      port: Number(this.configService.get<number>('SMTP_PORT')) || 2525,
-      auth: {
-        user: this.configService.get<string>('SMTP_USER') || '',
-        pass: this.configService.get<string>('SMTP_PASS') || '',
-      },
-    });
+    const user =
+      this.configService.get<string>('APP_USER_EMAIL') ||
+      this.configService.get<string>('SMTP_USER') ||
+      '';
+    const pass =
+      this.configService.get<string>('APP_PASSWORD') ||
+      this.configService.get<string>('SMTP_PASS') ||
+      '';
+
+    const isGmail = user.toLowerCase().includes('@gmail.com');
+
+    if (isGmail) {
+      this.logger.log(`Initializing Gmail Nodemailer transport for: ${user}`);
+      this.transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user,
+          pass,
+        },
+      });
+    } else {
+      const host = this.configService.get<string>('SMTP_HOST') || 'smtp.mailtrap.io';
+      const port = Number(this.configService.get<number>('SMTP_PORT')) || 2525;
+      const secure = port === 465;
+
+      this.logger.log(`Initializing SMTP transport for ${host}:${port}`);
+      this.transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: {
+          user,
+          pass,
+        },
+      });
+    }
   }
 
   async process(job: Job<SendMailJobData>): Promise<any> {
     this.logger.log(`Processing email job ${job.id} to ${job.data.to}...`);
 
     try {
+      const user =
+        this.configService.get<string>('APP_USER_EMAIL') ||
+        this.configService.get<string>('SMTP_USER') ||
+        '';
+
       const from =
         this.configService.get<string>('EMAIL_FROM') ||
-        '"Smart Meal Management" <no-reply@smartmeal.com>';
+        (user ? `"Smart Meal Management" <${user}>` : '"Smart Meal Management" <no-reply@smartmeal.com>');
 
       const info = await this.transporter.sendMail({
         from,
@@ -44,7 +77,7 @@ export class MailProcessor extends WorkerHost {
         html: job.data.html,
       });
 
-      this.logger.log(`Email sent successfully: ${info.messageId}`);
+      this.logger.log(`Email sent successfully to ${job.data.to}. MessageId: ${info.messageId}`);
       return { messageId: info.messageId };
     } catch (error: any) {
       this.logger.error(`Failed to send email to ${job.data.to}: ${error.message}`, error.stack);

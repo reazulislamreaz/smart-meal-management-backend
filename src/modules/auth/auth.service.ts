@@ -15,6 +15,8 @@ import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
 import { Role } from '@prisma/client';
 
+import { MailService } from '@/modules/mail/mail.service';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -22,6 +24,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
   ) {}
 
   private hashTokenWithHmac(token: string): string {
@@ -180,5 +183,125 @@ export class AuthService {
       data: { isRevoked: true },
     });
     return { success: true };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return {
+        message: 'If an account exists with that email, a 6-digit OTP code has been sent.',
+      };
+    }
+
+    const resetCode = crypto.randomInt(100000, 1000000).toString();
+    const hashedResetToken = this.hashTokenWithHmac(resetCode);
+
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: hashedResetToken,
+        passwordResetExpires: expiresAt,
+      },
+    });
+
+    await this.mailService.sendPasswordResetEmail(user.email, resetCode, user.firstName);
+
+    return {
+      message: 'If an account exists with that email, a 6-digit OTP code has been sent.',
+    };
+  }
+
+  async verifyOtp(email: string, code: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or verification code.');
+    }
+
+    const hashedCode = this.hashTokenWithHmac(code);
+
+    if (
+      !user.passwordResetToken ||
+      user.passwordResetToken !== hashedCode ||
+      !user.passwordResetExpires ||
+      user.passwordResetExpires < new Date()
+    ) {
+      throw new UnauthorizedException('Invalid or expired 6-digit verification code.');
+    }
+
+    return {
+      message: 'OTP verified successfully. You can now reset your password.',
+    };
+  }
+
+  async resendOtp(email: string) {
+    return this.forgotPassword(email);
+  }
+
+  async resetPassword(dto: { email?: string; code?: string; token?: string; newPassword: string }) {
+    const rawCode = dto.code || dto.token;
+
+    if (!rawCode) {
+      throw new UnauthorizedException('Verification code is required.');
+    }
+
+    const hashedResetToken = this.hashTokenWithHmac(rawCode);
+
+    let user;
+
+    if (dto.email) {
+      user = await this.prisma.user.findUnique({
+        where: { email: dto.email },
+      });
+      if (
+        !user ||
+        !user.passwordResetToken ||
+        user.passwordResetToken !== hashedResetToken ||
+        !user.passwordResetExpires ||
+        user.passwordResetExpires < new Date()
+      ) {
+        throw new UnauthorizedException('Invalid or expired 6-digit verification code.');
+      }
+    } else {
+      user = await this.prisma.user.findFirst({
+        where: {
+          passwordResetToken: hashedResetToken,
+          passwordResetExpires: {
+            gt: new Date(),
+          },
+        },
+      });
+      if (!user) {
+        throw new UnauthorizedException('Invalid or expired 6-digit verification code.');
+      }
+    }
+
+    const newPasswordHash = await argon2.hash(dto.newPassword);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: newPasswordHash,
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
+    });
+
+    await this.prisma.authSession.updateMany({
+      where: { userId: user.id },
+      data: { isRevoked: true },
+    });
+
+    return {
+      message: 'Password has been reset successfully. Please log in with your new password.',
+    };
   }
 }

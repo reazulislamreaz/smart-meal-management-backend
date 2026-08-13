@@ -23,6 +23,8 @@ model User {
   dietaryRestrictions String[]      @default([])
   isEmailVerified     Boolean       @default(false)
   avatarUrl           String?
+  passwordResetToken  String?
+  passwordResetExpires DateTime?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
   sessions            AuthSession[]

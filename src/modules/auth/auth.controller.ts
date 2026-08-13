@@ -13,6 +13,10 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { ResendOtpDto } from './dto/resend-otp.dto';
 import { Public } from '@/common/decorators/public.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { Request } from 'express';
@@ -85,6 +89,58 @@ export class AuthController {
     await this.authService.logout(refreshTokenDto.refreshToken);
     return {
       message: 'Logout successful',
+      data: null,
+    };
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Screen 1: Request 6-digit OTP code to reset password' })
+  @ApiResponse({ status: 200, description: '6-digit OTP code sent if account exists' })
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    const result = await this.authService.forgotPassword(forgotPasswordDto.email);
+    return {
+      message: result.message,
+      data: null,
+    };
+  }
+
+  @Public()
+  @Post('verify-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Screen 2: Verify 6-digit OTP code' })
+  @ApiResponse({ status: 200, description: 'OTP code verified successfully' })
+  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
+    const result = await this.authService.verifyOtp(verifyOtpDto.email, verifyOtpDto.code);
+    return {
+      message: result.message,
+      data: null,
+    };
+  }
+
+  @Public()
+  @Post('resend-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Screen 2: Resend 6-digit OTP code' })
+  @ApiResponse({ status: 200, description: 'OTP code resent successfully' })
+  async resendOtp(@Body() resendOtpDto: ResendOtpDto) {
+    const result = await this.authService.resendOtp(resendOtpDto.email);
+    return {
+      message: result.message,
+      data: null,
+    };
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Screen 3: Reset password using verified 6-digit OTP code' })
+  @ApiResponse({ status: 200, description: 'Password reset successfully' })
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    const result = await this.authService.resetPassword(resetPasswordDto);
+    return {
+      message: result.message,
       data: null,
     };
   }
