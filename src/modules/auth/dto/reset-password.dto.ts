@@ -1,30 +1,14 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class ResetPasswordDto {
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'user@example.com',
     description: 'Registered user email address',
   })
-  @IsOptional()
   @IsEmail({}, { message: 'Please provide a valid email address' })
-  email?: string;
-
-  @ApiPropertyOptional({
-    example: '849201',
-    description: '6-digit OTP code sent via email',
-  })
-  @IsOptional()
-  @IsString()
-  code?: string;
-
-  @ApiPropertyOptional({
-    example: '849201',
-    description: '6-digit OTP token sent via email',
-  })
-  @IsOptional()
-  @IsString()
-  token?: string;
+  @IsNotEmpty({ message: 'Email is required' })
+  email: string;
 
   @ApiProperty({
     example: 'NewSecurePassword123!',
@@ -34,4 +18,13 @@ export class ResetPasswordDto {
   @IsNotEmpty({ message: 'New password is required' })
   @MinLength(8, { message: 'Password must be at least 8 characters long' })
   newPassword: string;
+
+  @ApiProperty({
+    example: 'NewSecurePassword123!',
+    description: 'Confirm new password (must match newPassword)',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'Confirm password is required' })
+  @MinLength(8, { message: 'Confirm password must be at least 8 characters long' })
+  confirmNewPassword: string;
 }

@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -246,45 +247,22 @@ export class AuthService {
     return this.forgotPassword(email);
   }
 
-  async resetPassword(dto: { email?: string; code?: string; token?: string; newPassword: string }) {
-    const rawCode = dto.code || dto.token;
+  async resetPassword(dto: { email: string; newPassword: string; confirmNewPassword: string }) {
+    const { email, newPassword, confirmNewPassword } = dto;
 
-    if (!rawCode) {
-      throw new UnauthorizedException('Verification code is required.');
+    if (newPassword !== confirmNewPassword) {
+      throw new BadRequestException('New password and confirm password do not match.');
     }
 
-    const hashedResetToken = this.hashTokenWithHmac(rawCode);
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
 
-    let user;
-
-    if (dto.email) {
-      user = await this.prisma.user.findUnique({
-        where: { email: dto.email },
-      });
-      if (
-        !user ||
-        !user.passwordResetToken ||
-        user.passwordResetToken !== hashedResetToken ||
-        !user.passwordResetExpires ||
-        user.passwordResetExpires < new Date()
-      ) {
-        throw new UnauthorizedException('Invalid or expired 6-digit verification code.');
-      }
-    } else {
-      user = await this.prisma.user.findFirst({
-        where: {
-          passwordResetToken: hashedResetToken,
-          passwordResetExpires: {
-            gt: new Date(),
-          },
-        },
-      });
-      if (!user) {
-        throw new UnauthorizedException('Invalid or expired 6-digit verification code.');
-      }
+    if (!user || !user.passwordResetExpires || user.passwordResetExpires < new Date()) {
+      throw new UnauthorizedException('Invalid or expired password reset session. Please request a new OTP code.');
     }
 
-    const newPasswordHash = await argon2.hash(dto.newPassword);
+    const newPasswordHash = await argon2.hash(newPassword);
 
     await this.prisma.user.update({
       where: { id: user.id },
