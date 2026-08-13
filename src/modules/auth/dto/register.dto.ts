@@ -3,14 +3,6 @@ import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-vali
 
 export class RegisterDto {
   @ApiProperty({
-    example: 'John Doe',
-    description: 'Full name of the user',
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'Full name is required' })
-  fullName: string;
-
-  @ApiProperty({
     example: 'user@example.com',
     description: 'Valid email address',
   })
@@ -42,28 +34,4 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   phoneNumber?: string;
-
-  @ApiPropertyOptional({
-    example: 'https://example.com/avatar.jpg',
-    description: 'Optional profile image URL or base64',
-  })
-  @IsOptional()
-  @IsString()
-  image?: string;
-
-  @ApiPropertyOptional({
-    example: 'https://example.com/avatar.jpg',
-    description: 'Optional profile image URL alias',
-  })
-  @IsOptional()
-  @IsString()
-  avatarUrl?: string;
-
-  @ApiPropertyOptional({
-    example: 'John Doe',
-    description: 'Alias for fullName',
-  })
-  @IsOptional()
-  @IsString()
-  name?: string;
 }
