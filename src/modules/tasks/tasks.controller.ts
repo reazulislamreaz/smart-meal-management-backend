@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Patch, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { TasksService } from './tasks.service';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { RolesGuard } from '@/common/guards/roles.guard';
@@ -12,13 +12,29 @@ export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List current user household tasks' })
+  @ApiOperation({ summary: 'List current user household tasks with search and status filtering' })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED'] })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiResponse({ status: 200, description: 'Tasks retrieved successfully' })
-  async getTasks(@CurrentUser('id') userId: string) {
-    const tasks = await this.tasksService.getUserTasks(userId);
+  async getTasks(
+    @CurrentUser('id') userId: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('page', new ParseIntPipe({ optional: true })) page = 1,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 20,
+  ) {
+    const result = await this.tasksService.getUserTasks(userId, {
+      search,
+      status,
+      page,
+      limit,
+    });
     return {
       message: 'Tasks retrieved successfully',
-      data: tasks,
+      data: result.data,
+      meta: result.meta,
     };
   }
 

@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Delete, Body, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Delete, Body, Param, Query, ParseIntPipe, ParseBoolPipe, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { PantryService } from './pantry.service';
 import { CreatePantryItemDto } from './dto/create-pantry-item.dto';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
@@ -13,13 +13,32 @@ export class PantryController {
   constructor(private readonly pantryService: PantryService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List current user pantry inventory' })
+  @ApiOperation({ summary: 'List current user pantry inventory with search and category filtering' })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'category', required: false, type: String })
+  @ApiQuery({ name: 'isLowStock', required: false, type: Boolean })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiResponse({ status: 200, description: 'Pantry items retrieved successfully' })
-  async getPantry(@CurrentUser('id') userId: string) {
-    const items = await this.pantryService.getUserPantry(userId);
+  async getPantry(
+    @CurrentUser('id') userId: string,
+    @Query('search') search?: string,
+    @Query('category') category?: string,
+    @Query('isLowStock', new ParseBoolPipe({ optional: true })) isLowStock?: boolean,
+    @Query('page', new ParseIntPipe({ optional: true })) page = 1,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 20,
+  ) {
+    const result = await this.pantryService.getUserPantry(userId, {
+      search,
+      category,
+      isLowStock,
+      page,
+      limit,
+    });
     return {
       message: 'Pantry items retrieved successfully',
-      data: items,
+      data: result.data,
+      meta: result.meta,
     };
   }
 

@@ -5,12 +5,51 @@ import { PrismaService } from '@/database/prisma.service';
 export class TasksService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getUserTasks(userId: string) {
-    const tasks = await this.prisma.task.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
-    return tasks;
+  async getUserTasks(
+    userId: string,
+    query?: {
+      search?: string;
+      status?: string;
+      page?: number;
+      limit?: number;
+    },
+  ) {
+    const page = Number(query?.page) || 1;
+    const limit = Number(query?.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const where: any = { userId };
+
+    if (query?.status) {
+      where.status = query.status.toUpperCase();
+    }
+
+    if (query?.search) {
+      where.OR = [
+        { title: { contains: query.search, mode: 'insensitive' } },
+        { description: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [tasks, total] = await Promise.all([
+      this.prisma.task.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.task.count({ where }),
+    ]);
+
+    return {
+      data: tasks,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async createTask(userId: string, dto: { title: string; description?: string; dueDate?: string }) {
