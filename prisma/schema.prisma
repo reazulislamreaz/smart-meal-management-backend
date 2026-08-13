@@ -20,17 +20,33 @@ model User {
   name                String?
   phoneNumber         String?
   role                Role          @default(USER)
-  weeklyBudget        Float         @default(150.0)
-  cuisinePreferences  String[]      @default([])
-  dietaryRestrictions String[]      @default([])
-  isEmailVerified     Boolean       @default(false)
-  avatarUrl           String?
+  weeklyBudget           Float         @default(150.0)
+  adultsCount            Int           @default(1)
+  childrenCount          Int           @default(0)
+  plannedMealTypes       String[]      @default([])
+  plannedDaysCount       Int           @default(7)
+  mealVibes              String[]      @default([])
+  kitchenEquipment       String[]      @default([])
+  pantryStaples          String[]      @default([])
+  cuisinePreferences     String[]      @default([])
+  dietaryRestrictions    String[]      @default([])
+  onboardingStep         Int           @default(1)
+  isOnboardingCompleted  Boolean       @default(false)
+  isEmailVerified        Boolean       @default(false)
+  avatarUrl              String?
   passwordResetToken  String?
   passwordResetExpires DateTime?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
   sessions            AuthSession[]
   auditLogs           AuditLog[]
+  mealPlans           MealPlan[]
+  pantryItems         PantryItem[]
+  tasks               Task[]
+  subscriptions       Subscription[]
+  cookbookLogs        CookbookLog[]
+  favourites          UserFavourite[]
+  couponRedemptions   CouponRedemption[]
 
   @@index([email])
   @@map("users")
@@ -68,3 +84,171 @@ model AuditLog {
   @@index([entity, entityId])
   @@map("audit_logs")
 }
+
+model Meal {
+  id              String         @id @default(uuid())
+  title           String
+  description     String?
+  prepTimeMinutes Int            @default(15)
+  servings        Int            @default(4)
+  estimatedCost   Float          @default(15.0)
+  cuisine         String         @default("American")
+  dietaryTags     String[]       @default([])
+  instructions    String[]       @default([])
+  ingredients     Json           @default("[]")
+  imageUrl        String?
+  cookedCount     Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  mealPlanItems   MealPlanItem[]
+  cookbookLogs    CookbookLog[]
+  favourites      UserFavourite[]
+
+  @@map("meals")
+}
+
+model MealPlan {
+  id                  String         @id @default(uuid())
+  userId              String
+  user                User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate           DateTime       @default(now())
+  endDate             DateTime
+  totalEstimatedCost  Float          @default(0.0)
+  actualCost          Float?
+  status              String         @default("ACTIVE")
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  items               MealPlanItem[]
+
+  @@index([userId])
+  @@map("meal_plans")
+}
+
+model MealPlanItem {
+  id         String   @id @default(uuid())
+  mealPlanId String
+  mealPlan   MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  mealId     String
+  meal       Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  dayOfWeek  Int      @default(1)
+  mealType   String   @default("LUNCH")
+  isCooked   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([mealPlanId])
+  @@index([mealId])
+  @@map("meal_plan_items")
+}
+
+model PantryItem {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ingredientName String
+  category       String    @default("Pantry")
+  quantity       Float     @default(1.0)
+  unit           String    @default("pcs")
+  isLowStock     Boolean   @default(false)
+  expiryDate     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("pantry_items")
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      String    @default("PENDING")
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("tasks")
+}
+
+model Subscription {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planName        String    @default("Monthly Premium")
+  status          String    @default("ACTIVE")
+  currentPeriodEnd DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model CookbookLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealId    String
+  meal      Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  photoUrl  String?
+  notes     String?
+  cookedAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([mealId])
+  @@map("cookbook_logs")
+}
+
+model UserFavourite {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealId    String
+  meal      Meal     @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, mealId])
+  @@index([userId])
+  @@map("user_favourites")
+}
+
+model Coupon {
+  id              String             @id @default(uuid())
+  code            String             @unique
+  discountPercent Float              @default(10.0)
+  validUntil      DateTime?
+  maxRedemptions  Int                @default(100)
+  isActive        Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  redemptions     CouponRedemption[]
+
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id         String   @id @default(uuid())
+  couponId   String
+  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redeemedAt DateTime @default(now())
+
+  @@unique([couponId, userId])
+  @@map("coupon_redemptions")
+}
+
+model StaticPage {
+  id        String   @id @default(uuid())
+  slug      String   @unique
+  title     String
+  content   String
+  updatedAt DateTime @updatedAt
+
+  @@map("static_pages")
+}
+
+

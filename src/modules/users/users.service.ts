@@ -6,8 +6,9 @@ import {
 import { UsersRepository } from './users.repository';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateOnboardingDto } from './dto/onboarding.dto';
 import * as argon2 from 'argon2';
-import { User } from '@prisma/client';
+import { User, Prisma } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -84,5 +85,136 @@ export class UsersService {
   async deleteUser(id: string): Promise<void> {
     await this.findById(id);
     await this.usersRepository.delete(id);
+  }
+
+  async updateOnboarding(
+    userId: string,
+    dto: UpdateOnboardingDto,
+  ): Promise<Omit<User, 'passwordHash'>> {
+    await this.findById(userId);
+
+    const updateData: Prisma.UserUpdateInput = {};
+
+    if (dto.displayName !== undefined) {
+      updateData.name = dto.displayName;
+    }
+    if (dto.adultsCount !== undefined) {
+      updateData.adultsCount = dto.adultsCount;
+    }
+    if (dto.childrenCount !== undefined) {
+      updateData.childrenCount = dto.childrenCount;
+    }
+    if (dto.plannedMealTypes !== undefined) {
+      updateData.plannedMealTypes = dto.plannedMealTypes;
+    }
+    if (dto.plannedDaysCount !== undefined) {
+      updateData.plannedDaysCount = dto.plannedDaysCount;
+    }
+    if (dto.weeklyBudget !== undefined) {
+      updateData.weeklyBudget = dto.weeklyBudget;
+    }
+    if (dto.mealVibes !== undefined) {
+      updateData.mealVibes = dto.mealVibes;
+    }
+    if (dto.kitchenEquipment !== undefined) {
+      updateData.kitchenEquipment = dto.kitchenEquipment;
+    }
+    if (dto.pantryStaples !== undefined) {
+      updateData.pantryStaples = dto.pantryStaples;
+    }
+    if (dto.dietaryRestrictions !== undefined) {
+      updateData.dietaryRestrictions = dto.dietaryRestrictions;
+    }
+    if (dto.cuisinePreferences !== undefined) {
+      updateData.cuisinePreferences = dto.cuisinePreferences;
+    }
+    if (dto.onboardingStep !== undefined) {
+      updateData.onboardingStep = dto.onboardingStep;
+    }
+    if (dto.isCompleted !== undefined) {
+      updateData.isOnboardingCompleted = dto.isCompleted;
+      if (dto.isCompleted) {
+        updateData.onboardingStep = 8;
+      }
+    }
+
+    const updated = await this.usersRepository.update(userId, updateData);
+    const { passwordHash, ...result } = updated;
+    return result;
+  }
+
+  async getOnboardingStatus(userId: string) {
+    const user = await this.usersRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundException(`User with ID "${userId}" not found`);
+    }
+
+    return {
+      onboardingStep: user.onboardingStep,
+      isOnboardingCompleted: user.isOnboardingCompleted,
+      profile: {
+        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phoneNumber,
+        avatarUrl: user.avatarUrl,
+      },
+      preferences: {
+        adultsCount: user.adultsCount,
+        childrenCount: user.childrenCount,
+        plannedMealTypes: user.plannedMealTypes,
+        plannedDaysCount: user.plannedDaysCount,
+        weeklyBudget: user.weeklyBudget,
+        mealVibes: user.mealVibes,
+        kitchenEquipment: user.kitchenEquipment,
+        pantryStaples: user.pantryStaples,
+        dietaryRestrictions: user.dietaryRestrictions,
+        cuisinePreferences: user.cuisinePreferences,
+      },
+    };
+  }
+
+  async completeOnboarding(
+    userId: string,
+    dto?: UpdateOnboardingDto,
+  ): Promise<Omit<User, 'passwordHash'>> {
+    const payload = dto ? { ...dto, isCompleted: true, onboardingStep: 8 } : { isCompleted: true, onboardingStep: 8 };
+    const updatedUser = await this.updateOnboarding(userId, payload);
+
+    // Auto-populate pantry items from user's selected pantryStaples
+    if (updatedUser.pantryStaples && updatedUser.pantryStaples.length > 0) {
+      const itemsToCreate = updatedUser.pantryStaples.map((staple) => ({
+        userId,
+        ingredientName: staple,
+        category: 'Pantry Staples',
+        quantity: 1.0,
+        unit: 'pcs',
+        isLowStock: false,
+      }));
+      await (this.usersRepository as any).prisma.pantryItem.createMany({
+        data: itemsToCreate,
+        skipDuplicates: true,
+      });
+    }
+
+    return updatedUser;
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.usersRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isValid = await argon2.verify(user.passwordHash, currentPassword);
+    if (!isValid) {
+      throw new ConflictException('Current password does not match');
+    }
+
+    const newHash = await argon2.hash(newPassword);
+    await this.usersRepository.update(userId, { passwordHash: newHash });
+
+    return { success: true, message: 'Password updated successfully' };
   }
 }

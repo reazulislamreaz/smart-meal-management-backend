@@ -18,6 +18,15 @@ import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { ExportModule } from './modules/export/export.module';
 import { HealthModule } from './modules/health/health.module';
+import { MealsModule } from './modules/meals/meals.module';
+import { PantryModule } from './modules/pantry/pantry.module';
+import { MealPlansModule } from './modules/meal-plans/meal-plans.module';
+import { ShoppingListModule } from './modules/shopping-list/shopping-list.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { CookbookModule } from './modules/cookbook/cookbook.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { ContentModule } from './modules/content/content.module';
 
 @Module({
   imports: [
@@ -75,6 +84,15 @@ import { HealthModule } from './modules/health/health.module';
     UploadModule,
     ExportModule,
     HealthModule,
+    MealsModule,
+    PantryModule,
+    MealPlansModule,
+    ShoppingListModule,
+    TasksModule,
+    CookbookModule,
+    SubscriptionsModule,
+    AdminModule,
+    ContentModule,
   ],
   providers: [
     {
