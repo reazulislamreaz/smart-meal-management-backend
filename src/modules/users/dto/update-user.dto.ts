@@ -29,7 +29,7 @@ export class UpdateUserDto {
   @IsOptional()
   role?: Role;
 
-  @ApiPropertyOptional({ example: 'https://cloudinary.com/avatar.jpg' })
+  @ApiPropertyOptional({ example: 'https://s3.amazonaws.com/avatar.jpg' })
   @IsString()
   @IsOptional()
   avatarUrl?: string;

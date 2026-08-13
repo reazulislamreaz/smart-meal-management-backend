@@ -44,21 +44,17 @@ export class AuthService {
     }
 
     const passwordHash = await argon2.hash(dto.password);
-    const fullName = dto.fullName || dto.name || 'User';
-    const avatarUrl = dto.image || dto.avatar || dto.avatarUrl || null;
-    const phoneNumber = dto.phone || dto.phoneNumber || null;
-
-    const nameParts = fullName.trim().split(' ');
-    const firstName = nameParts[0] || fullName;
-    const lastName = nameParts.slice(1).join(' ') || '';
+    const fullName = `${dto.firstName} ${dto.lastName}`.trim();
+    const avatarUrl = dto.image || null;
+    const phoneNumber = dto.phone || null;
 
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         passwordHash,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
         name: fullName,
-        firstName,
-        lastName,
         avatarUrl,
         phoneNumber,
         role: Role.USER,

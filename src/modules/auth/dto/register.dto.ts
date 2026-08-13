@@ -3,20 +3,20 @@ import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-vali
 
 export class RegisterDto {
   @ApiProperty({
-    example: 'John Doe',
-    description: 'User full name',
+    example: 'John',
+    description: 'User first name',
   })
   @IsString()
-  @IsNotEmpty({ message: 'Full name is required' })
-  fullName: string;
+  @IsNotEmpty({ message: 'First name is required' })
+  firstName: string;
 
-  @ApiPropertyOptional({
-    example: 'John Doe',
-    description: 'Alias for fullName',
+  @ApiProperty({
+    example: 'Doe',
+    description: 'User last name',
   })
-  @IsOptional()
   @IsString()
-  name?: string;
+  @IsNotEmpty({ message: 'Last name is required' })
+  lastName: string;
 
   @ApiProperty({
     example: 'user@example.com',
@@ -44,34 +44,10 @@ export class RegisterDto {
   phone?: string;
 
   @ApiPropertyOptional({
-    example: '+1234567890',
-    description: 'Optional phone number alias',
-  })
-  @IsOptional()
-  @IsString()
-  phoneNumber?: string;
-
-  @ApiPropertyOptional({
     example: 'https://story-telling-bucket-s3.s3.eu-north-1.amazonaws.com/avatars/sample.jpg',
     description: 'Optional avatar / personal image URL',
   })
   @IsOptional()
   @IsString()
   image?: string;
-
-  @ApiPropertyOptional({
-    example: 'https://story-telling-bucket-s3.s3.eu-north-1.amazonaws.com/avatars/sample.jpg',
-    description: 'Optional avatar image alias',
-  })
-  @IsOptional()
-  @IsString()
-  avatar?: string;
-
-  @ApiPropertyOptional({
-    example: 'https://story-telling-bucket-s3.s3.eu-north-1.amazonaws.com/avatars/sample.jpg',
-    description: 'Optional avatarUrl alias',
-  })
-  @IsOptional()
-  @IsString()
-  avatarUrl?: string;
 }
