@@ -3,20 +3,12 @@ import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-vali
 
 export class RegisterDto {
   @ApiProperty({
-    example: 'John',
-    description: 'User first name',
+    example: 'John Doe',
+    description: 'User full name',
   })
   @IsString()
-  @IsNotEmpty({ message: 'First name is required' })
-  firstName: string;
-
-  @ApiProperty({
-    example: 'Doe',
-    description: 'User last name',
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'Last name is required' })
-  lastName: string;
+  @IsNotEmpty({ message: 'Full name is required' })
+  fullName: string;
 
   @ApiProperty({
     example: 'user@example.com',

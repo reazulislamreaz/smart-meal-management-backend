@@ -44,7 +44,9 @@ export class AuthService {
     }
 
     const passwordHash = await argon2.hash(dto.password);
-    const fullName = `${dto.firstName} ${dto.lastName}`.trim();
+    const nameParts = dto.fullName.trim().split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ') || '';
     const avatarUrl = dto.image || null;
     const phoneNumber = dto.phone || null;
 
@@ -52,9 +54,9 @@ export class AuthService {
       data: {
         email: dto.email,
         passwordHash,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        name: fullName,
+        firstName,
+        lastName,
+        name: dto.fullName.trim(),
         avatarUrl,
         phoneNumber,
         role: Role.USER,
