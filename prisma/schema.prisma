@@ -15,8 +15,10 @@ model User {
   id                  String        @id @default(uuid())
   email               String        @unique
   passwordHash        String
-  firstName           String
-  lastName            String
+  firstName           String?
+  lastName            String?
+  name                String?
+  phoneNumber         String?
   role                Role          @default(USER)
   weeklyBudget        Float         @default(150.0)
   cuisinePreferences  String[]      @default([])

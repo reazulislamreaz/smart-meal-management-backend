@@ -1,43 +1,69 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength, IsNumber, Min, IsArray } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class RegisterDto {
-  @ApiProperty({ example: 'user@smartmeal.com' })
-  @IsEmail()
-  @IsNotEmpty()
-  email!: string;
-
-  @ApiProperty({ example: 'StrongPassword123!' })
+  @ApiProperty({
+    example: 'John Doe',
+    description: 'Full name of the user',
+  })
   @IsString()
-  @MinLength(8)
-  @IsNotEmpty()
-  password!: string;
+  @IsNotEmpty({ message: 'Full name is required' })
+  fullName: string;
 
-  @ApiProperty({ example: 'Reazul' })
+  @ApiProperty({
+    example: 'user@example.com',
+    description: 'Valid email address',
+  })
+  @IsEmail({}, { message: 'Please provide a valid email address' })
+  @IsNotEmpty({ message: 'Email is required' })
+  email: string;
+
+  @ApiProperty({
+    example: 'StrongPassword123!',
+    description: 'Account password (minimum 8 characters)',
+  })
   @IsString()
-  @IsNotEmpty()
-  firstName!: string;
+  @IsNotEmpty({ message: 'Password is required' })
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  password: string;
 
-  @ApiProperty({ example: 'Islam' })
+  @ApiPropertyOptional({
+    example: '+1234567890',
+    description: 'Optional phone number',
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  lastName!: string;
+  phone?: string;
 
-  @ApiPropertyOptional({ example: 150.0 })
+  @ApiPropertyOptional({
+    example: '+1234567890',
+    description: 'Optional phone number alias',
+  })
   @IsOptional()
-  @IsNumber()
-  @Min(50)
-  weeklyBudget?: number;
+  @IsString()
+  phoneNumber?: string;
 
-  @ApiPropertyOptional({ example: ['Italian', 'Mexican'] })
+  @ApiPropertyOptional({
+    example: 'https://example.com/avatar.jpg',
+    description: 'Optional profile image URL or base64',
+  })
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  cuisinePreferences?: string[];
+  @IsString()
+  image?: string;
 
-  @ApiPropertyOptional({ example: ['Vegetarian', 'Gluten-Free'] })
+  @ApiPropertyOptional({
+    example: 'https://example.com/avatar.jpg',
+    description: 'Optional profile image URL alias',
+  })
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  dietaryRestrictions?: string[];
+  @IsString()
+  avatarUrl?: string;
+
+  @ApiPropertyOptional({
+    example: 'John Doe',
+    description: 'Alias for fullName',
+  })
+  @IsOptional()
+  @IsString()
+  name?: string;
 }

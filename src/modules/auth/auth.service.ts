@@ -44,18 +44,25 @@ export class AuthService {
     }
 
     const passwordHash = await argon2.hash(dto.password);
-    const weeklyBudget = dto.weeklyBudget ?? 150.0;
+    const fullName = dto.fullName || dto.name || 'User';
+    const avatarUrl = dto.image || dto.avatarUrl || null;
+    const phoneNumber = dto.phone || dto.phoneNumber || null;
+
+    const nameParts = fullName.trim().split(' ');
+    const firstName = nameParts[0] || fullName;
+    const lastName = nameParts.slice(1).join(' ') || '';
 
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         passwordHash,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
+        name: fullName,
+        firstName,
+        lastName,
+        avatarUrl,
+        phoneNumber,
         role: Role.USER,
-        weeklyBudget,
-        cuisinePreferences: dto.cuisinePreferences || [],
-        dietaryRestrictions: dto.dietaryRestrictions || [],
+        weeklyBudget: 150.0,
       },
     });
 
@@ -211,7 +218,8 @@ export class AuthService {
       },
     });
 
-    await this.mailService.sendPasswordResetEmail(user.email, resetCode, user.firstName);
+    const displayName = user.name || user.firstName || 'User';
+    await this.mailService.sendPasswordResetEmail(user.email, resetCode, displayName);
 
     return {
       message: 'If an account exists with that email, a 6-digit OTP code has been sent.',
