@@ -237,7 +237,11 @@ export class AdminService {
     }
     if (dateFrom || dateTo) {
       where.createdAt = {};
-      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        where.createdAt.gte = fromDate;
+      }
       if (dateTo) {
         const toDate = new Date(dateTo);
         toDate.setHours(23, 59, 59, 999);
@@ -563,6 +567,10 @@ export class AdminService {
       where: { id: user.id },
       data: { isBlocked: newBlockedState },
     });
+
+    if (newBlockedState) {
+      await this.prisma.authSession.deleteMany({ where: { userId: user.id } });
+    }
 
     const { passwordHash, ...result } = updated;
     return {

@@ -28,6 +28,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException('Invalid or expired token payload');
     }
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Your account has been blocked by an administrator. Please contact support.');
+    }
     return user;
   }
 }

@@ -89,6 +89,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Your account has been blocked by an administrator. Please contact support.');
+    }
+
     const isValidPassword = await argon2.verify(user.passwordHash, dto.password);
     if (!isValidPassword) {
       throw new UnauthorizedException('Invalid email or password');
@@ -116,6 +120,10 @@ export class AuthService {
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Your account has been blocked by an administrator. Please contact support.');
     }
 
     const { passwordHash: _, ...sanitizedUser } = user;
@@ -171,6 +179,10 @@ export class AuthService {
 
     if (!session) {
       throw new UnauthorizedException('Invalid or revoked refresh token');
+    }
+
+    if (session.user?.isBlocked) {
+      throw new UnauthorizedException('Your account has been blocked by an administrator. Please contact support.');
     }
 
     if (session.isRevoked || session.expiresAt < new Date()) {
