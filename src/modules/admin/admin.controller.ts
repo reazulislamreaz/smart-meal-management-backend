@@ -133,9 +133,30 @@ export class AdminController {
     };
   }
 
+  @Get('tasks/latest-user')
+  @ApiOperation({ summary: 'Get the latest created task along with its creator user details' })
+  @ApiResponse({ status: 200, description: 'Latest task and user retrieved successfully' })
+  async getLatestTaskUser() {
+    const data = await this.adminService.getLatestTaskUser();
+    return {
+      message: 'Latest task and user retrieved successfully',
+      data,
+    };
+  }
+
   // ==========================================
   // 2. User Management & Moderation
   // ==========================================
+  @Get('users/ratio')
+  @ApiOperation({ summary: 'Get user ratio monthly/annual distribution, growth curves, and peak signups' })
+  @ApiResponse({ status: 200, description: 'User ratio analytics retrieved successfully' })
+  async getUserRatio() {
+    const data = await this.adminService.getUserRatioAnalytics();
+    return {
+      message: 'User ratio analytics retrieved successfully',
+      data,
+    };
+  }
   @Get('users')
   @ApiOperation({ summary: 'List platform users with task completion rates, blocked status, and filters' })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -246,7 +267,7 @@ export class AdminController {
   // ==========================================
   // 3. Subscription Pricing Plans Management
   // ==========================================
-  @Get('subscription-plans')
+  @Get(['subscription-plans', 'subscriptions/plans'])
   @ApiOperation({ summary: 'List all subscription pricing plans with active subscriber counts' })
   @ApiResponse({ status: 200, description: 'Subscription plans retrieved successfully' })
   async listSubscriptionPlans() {
@@ -257,7 +278,7 @@ export class AdminController {
     };
   }
 
-  @Get('subscription-plans/:id')
+  @Get(['subscription-plans/:id', 'subscriptions/plans/:id'])
   @ApiOperation({ summary: 'Get specific subscription pricing plan details' })
   @ApiResponse({ status: 200, description: 'Subscription plan retrieved successfully' })
   async getSubscriptionPlan(@Param('id') id: string) {
@@ -577,7 +598,7 @@ export class AdminController {
   // ==========================================
   // 8. Contact / Support Inquiries Management
   // ==========================================
-  @Get('contacts')
+  @Get(['contacts', 'contact-messages'])
   @ApiOperation({ summary: 'List user contact messages and support inquiries' })
   @ApiQuery({ name: 'status', required: false, enum: ['UNREAD', 'READ', 'RESOLVED'] })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -596,7 +617,7 @@ export class AdminController {
     };
   }
 
-  @Get('contacts/:id')
+  @Get(['contacts/:id', 'contact-messages/:id'])
   @ApiOperation({ summary: 'Get contact message by ID' })
   @ApiResponse({ status: 200, description: 'Contact message retrieved successfully' })
   async getContactMessage(@Param('id') id: string) {

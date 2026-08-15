@@ -85,6 +85,20 @@ export class ContentController {
   @ApiBearerAuth()
   @UseGuards(RolesGuard)
   @Roles(Role.SUPER_ADMIN)
+  @Get('admin/content/:slug')
+  @ApiOperation({ summary: 'Get static page content (Admin)' })
+  @ApiResponse({ status: 200, description: 'Static page content retrieved successfully' })
+  async getAdminPage(@Param('slug') slug: string) {
+    const page = await this.contentService.getStaticPage(slug);
+    return {
+      message: 'Static page content retrieved successfully',
+      data: page,
+    };
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
   @Put('admin/content/:slug')
   @ApiOperation({ summary: 'Edit static page content (Admin)' })
   @ApiResponse({ status: 200, description: 'Static page updated successfully' })

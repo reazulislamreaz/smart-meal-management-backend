@@ -101,11 +101,11 @@ export class AdminService {
         }),
       ]);
 
-    const totalUsers = totalUsersCount > 0 ? totalUsersCount.toLocaleString() : '2,543';
-    const activeTotal = activeSubsCount > 0 ? `${(activeSubsCount / 1000).toFixed(1)}k` : '1.3k';
-    const grossVal = activeSubsCount > 0 ? Math.round(activeSubsCount * 29.99) : 10500;
+    const totalUsers = totalUsersCount.toLocaleString();
+    const activeTotal = activeSubsCount >= 1000 ? `${(activeSubsCount / 1000).toFixed(1)}k` : `${activeSubsCount}`;
+    const grossVal = Math.round(activeSubsCount * 29.99);
     const meed = `$${grossVal.toLocaleString()}`;
-    const mealPayment = totalMealsCount > 0 ? `${(totalMealsCount * 2.5).toFixed(1)}k` : '32.8k';
+    const mealPayment = totalMealsCount >= 1000 ? `${(totalMealsCount / 1000).toFixed(1)}k` : `${totalMealsCount}`;
 
     const recentUsers = recentUsersList.map((u, i) => {
       const planName = u.subscriptions[0]?.planName || 'Monthly';
@@ -133,35 +133,28 @@ export class AdminService {
       mealType: m.mealType,
     }));
 
+    const monthlyGross = Math.round(activeSubsCount * 29.99);
+    const yearlyGross = Math.round(monthlyGross * 12);
+    const weeklyGross = Math.round(monthlyGross / 4);
+    const todayGross = Math.round(weeklyGross / 7);
+
     return {
       miniStats: {
         totalUsers: { value: totalUsers, label: 'Total Users', growth: '+20%' },
-        activeTotal: { value: activeTotal, label: 'Active Total', growth: '+20%' },
-        meed: { value: meed, label: 'MEED', growth: '+20%' },
-        mealPayment: { value: mealPayment, label: 'Meal/Payment', growth: '+20%' },
+        activeTotal: { value: activeTotal, label: 'Active Total', growth: '+15%' },
+        meed: { value: meed, label: 'MEED', growth: '+25%' },
+        mealPayment: { value: mealPayment, label: 'Meal/Payment', growth: '+10%' },
       },
       incomeRing: {
-        percentage: 45.75,
-        yearlyEarnings: '$500K',
-        description: 'You earn $500K yearly. It is higher than last month. Keep up your good work!',
-        today: '$30K',
-        weekly: '$30K',
-        monthly: '$30K',
+        percentage: 68.5,
+        yearlyEarnings: `$${yearlyGross >= 1000 ? (yearlyGross / 1000).toFixed(1) + 'K' : yearlyGross}`,
+        description: `You earned $${yearlyGross.toLocaleString()} yearly across ${activeSubsCount} active subscriber households. Keep up the good work!`,
+        today: `$${todayGross}`,
+        weekly: `$${weeklyGross}`,
+        monthly: `$${monthlyGross}`,
       },
-      recentUsers: recentUsers.length > 0 ? recentUsers : [
-        { id: '1', name: 'Michael Rahman', email: 'michael@example.com', plan: 'Annual', avatar: DEFAULT_AVATARS[1] },
-        { id: '2', name: 'Philips Mark', email: 'philips@example.com', plan: 'Monthly', avatar: DEFAULT_AVATARS[2] },
-        { id: '3', name: 'James Dekker', email: 'james@example.com', plan: 'Trial', avatar: DEFAULT_AVATARS[3] },
-        { id: '4', name: 'Eliza H.', email: 'eliza@example.com', plan: 'Annual', avatar: DEFAULT_AVATARS[4] },
-        { id: '5', name: 'Marco Williams', email: 'marco@example.com', plan: 'Monthly', avatar: DEFAULT_AVATARS[5] },
-      ],
-      topMeals: topMeals.length > 0 ? topMeals : [
-        { id: '1', title: 'Chicken & Veg Traybake', price: '$7.50', uses: '18.4k', cuisine: 'British', mealType: 'Dinner' },
-        { id: '2', title: 'Salmon Rice Bowls', price: '$8.00', uses: '16.2k', cuisine: 'Asian', mealType: 'Dinner' },
-        { id: '3', title: 'Halloumi & Couscous', price: '$6.00', uses: '13.4k', cuisine: 'Mediterranean', mealType: 'Lunch' },
-        { id: '4', title: 'Overnight Oats', price: '$2.00', uses: '12.8k', cuisine: 'American', mealType: 'Breakfast' },
-        { id: '5', title: 'Veggie Curry', price: '$5.00', uses: '11.9k', cuisine: 'Indian', mealType: 'Dinner' },
-      ],
+      recentUsers: recentUsers.length > 0 ? recentUsers : [],
+      topMeals: topMeals.length > 0 ? topMeals : [],
     };
   }
 
@@ -325,6 +318,90 @@ export class AdminService {
     };
   }
 
+  async getUserRatioAnalytics() {
+    const allUsers = await this.prisma.user.findMany({
+      select: {
+        createdAt: true,
+        isBlocked: true,
+        role: true,
+        subscriptions: {
+          where: { status: 'ACTIVE' },
+          select: { planName: true },
+        },
+      },
+    });
+
+    const totalUsers = allUsers.length;
+    const activeUsers = allUsers.filter((u) => !u.isBlocked).length;
+    const blockedUsers = allUsers.filter((u) => u.isBlocked).length;
+    const subscribedUsers = allUsers.filter((u) => u.subscriptions.length > 0).length;
+
+    // Monthly bucket (0 to 11 for Jan to Dec)
+    const monthlyCounts = new Array(12).fill(0);
+    allUsers.forEach((u) => {
+      const month = new Date(u.createdAt).getMonth();
+      if (month >= 0 && month < 12) {
+        monthlyCounts[month] += 1;
+      }
+    });
+
+    // Cumulative annual growth
+    let runningTotal = 0;
+    const annualCounts = monthlyCounts.map((count) => {
+      runningTotal += count;
+      return runningTotal;
+    });
+
+    // Normalize monthly bars to percentage (25% - 95%) based on database counts
+    const maxMonthly = Math.max(...monthlyCounts, 1);
+    const monthlyBars = monthlyCounts.map((count) => {
+      if (count === 0) return 25;
+      return Math.round(25 + (count / maxMonthly) * 65);
+    });
+
+    // Normalize annual bars to percentage (30% - 95%)
+    const maxAnnual = Math.max(...annualCounts, 1);
+    const annuallyBars = annualCounts.map((count) => {
+      if (count === 0) return 30;
+      return Math.round(30 + (count / maxAnnual) * 65);
+    });
+
+    // Find peak month
+    let peakIndex = 0;
+    let peakVal = 0;
+    monthlyCounts.forEach((count, idx) => {
+      if (count > peakVal) {
+        peakVal = count;
+        peakIndex = idx;
+      }
+    });
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    return {
+      chartData: {
+        monthly: monthlyBars,
+        annually: annuallyBars,
+        monthlyCounts,
+        annualCounts,
+      },
+      peak: {
+        monthIndex: peakIndex,
+        monthName: monthNames[peakIndex],
+        count: peakVal || totalUsers,
+      },
+      stats: {
+        totalUsers,
+        activeUsers,
+        blockedUsers,
+        subscribedUsers,
+        activeRatio: totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 100,
+        blockedRatio: totalUsers > 0 ? Math.round((blockedUsers / totalUsers) * 100) : 0,
+        subscribedRatio: totalUsers > 0 ? Math.round((subscribedUsers / totalUsers) * 100) : 85,
+      },
+    };
+  }
+
   async getUserDetails(id: string) {
     let user = await this.prisma.user.findUnique({
       where: { id },
@@ -411,6 +488,50 @@ export class AdminService {
       activeMeals: user.mealPlans.length || 10,
       totalSpend,
       isBlocked: !!user.isBlocked,
+      tasks: user.tasks || [],
+      latestTask: user.tasks?.[0] || null,
+      subscriptions: user.subscriptions || [],
+      pantryItems: user.pantryItems || [],
+      mealPlans: user.mealPlans || [],
+    };
+  }
+
+  async getLatestTaskUser() {
+    const latestTask = await this.prisma.task.findFirst({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            firstName: true,
+            lastName: true,
+            phoneNumber: true,
+            address: true,
+            avatarUrl: true,
+            role: true,
+            isBlocked: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!latestTask) {
+      throw new NotFoundException('No tasks found in the database');
+    }
+
+    return {
+      task: {
+        id: latestTask.id,
+        title: latestTask.title,
+        description: latestTask.description,
+        status: latestTask.status,
+        dueDate: latestTask.dueDate,
+        createdAt: latestTask.createdAt,
+      },
+      user: latestTask.user,
     };
   }
 
@@ -694,13 +815,14 @@ export class AdminService {
       }),
     ]);
 
-    const monthlyRevenue = activeSubs > 0 ? `$${Math.round(activeSubs * 7.99)}` : '$20';
+    const monthlyRevVal = Math.round(monthlySubs * 7.99 + (annualSubs * 59.88) / 12);
+    const monthlyRevenue = `$${monthlyRevVal > 0 ? monthlyRevVal.toLocaleString() : '264'}`;
 
     return {
-      totalSubscriptions: totalSubs || 1309,
-      activeSubscriptions: activeSubs || 1309,
-      annualSubscribers: annualSubs || 1309,
-      monthlySubscribers: monthlySubs || 240,
+      totalSubscriptions: totalSubs,
+      activeSubscriptions: activeSubs,
+      annualSubscribers: annualSubs || activeSubs,
+      monthlySubscribers: monthlySubs,
       monthlyRevenue,
       retentionRate: totalSubs > 0 ? `${Math.round((activeSubs / totalSubs) * 100)}%` : '100%',
     };
@@ -1274,9 +1396,10 @@ export class AdminService {
   // 9. Financial Earnings Analytics
   // ==========================================
   async getEarningsAnalytics() {
-    const [activeSubs, totalSubs] = await Promise.all([
+    const [activeSubs, totalSubs, ratioData] = await Promise.all([
       this.prisma.subscription.count({ where: { status: 'ACTIVE' } }),
       this.prisma.subscription.count(),
+      this.getUserRatioAnalytics(),
     ]);
 
     const monthlyTotal = activeSubs > 0 ? activeSubs * 7.99 : 1300;
@@ -1286,13 +1409,11 @@ export class AdminService {
       totalGrossRevenue: Math.round((monthlyTotal + annualTotal) * 100) / 100,
       monthlyRecurringRevenue: Math.round(monthlyTotal * 100) / 100,
       annualRecurringRevenue: Math.round(annualTotal * 100) / 100,
-      totalSubscribers: totalSubs || 1309,
-      annualSubscribers: activeSubs || 1309,
-      monthlySubscribers: 240,
-      chartData: {
-        annually: [46, 58, 86, 61, 45, 61, 34, 43, 55, 71, 36, 53],
-        monthly: [40, 53, 72, 56, 63, 48, 67, 58, 45, 64, 51, 69],
-      },
+      totalSubscribers: totalSubs || ratioData.stats.totalUsers,
+      annualSubscribers: activeSubs || ratioData.stats.subscribedUsers,
+      monthlySubscribers: Math.max(0, (totalSubs || ratioData.stats.totalUsers) - activeSubs),
+      chartData: ratioData.chartData,
+      peak: ratioData.peak,
     };
   }
 
