@@ -1072,6 +1072,7 @@ export class AdminService {
         uses: uses !== '0' ? uses : '12.8k',
         rawCost: m.estimatedCost,
         rawDuration: m.prepTimeMinutes,
+        servings: m.servings || 4,
         description: m.description,
         dietaryTags: m.dietaryTags,
         instructions: m.instructions,

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
-import PDFDocument from 'pdfkit';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const PDFDocument = require('pdfkit');
 import { UsersService } from '@/modules/users/users.service';
 
 @Injectable()
@@ -44,12 +45,14 @@ export class ExportService {
     const { data: users } = await this.usersService.findAll(1, 1000);
 
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 30, size: 'A4' });
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const PDFKitConstructor = typeof PDFDocument === 'function' ? PDFDocument : (PDFDocument as any)?.default || require('pdfkit');
+      const doc = new PDFKitConstructor({ margin: 30, size: 'A4' });
       const buffers: Buffer[] = [];
 
-      doc.on('data', (chunk) => buffers.push(chunk));
+      doc.on('data', (chunk: Buffer) => buffers.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
-      doc.on('error', (err) => reject(err));
+      doc.on('error', (err: any) => reject(err));
 
       // PDF Title
       doc.fontSize(18).text('Smart Meal Management System - Users Export', { align: 'center' });
