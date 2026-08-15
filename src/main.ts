@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import helmet from 'helmet';
 import * as compression from 'compression';
+import * as express from 'express';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/swagger.config';
 
@@ -25,6 +26,8 @@ async function bootstrap() {
     }),
   );
   app.use(compression());
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
   app.enableCors({
     origin: [
       'http://localhost:5173',

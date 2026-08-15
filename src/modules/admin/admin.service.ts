@@ -1382,15 +1382,23 @@ export class AdminService {
     }
 
     if (admin) {
+      const dataToUpdate: any = {};
+      if (dto.name) dataToUpdate.name = dto.name.trim();
+      if (dto.phone) dataToUpdate.phoneNumber = dto.phone.trim();
+      if (dto.address) dataToUpdate.address = dto.address.trim();
+      if (dto.avatar) dataToUpdate.avatarUrl = dto.avatar;
+
+      if (dto.email && dto.email.trim().toLowerCase() !== admin.email) {
+        const cleanEmail = dto.email.trim().toLowerCase();
+        const conflict = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
+        if (!conflict) {
+          dataToUpdate.email = cleanEmail;
+        }
+      }
+
       const updated = await this.prisma.user.update({
         where: { id: admin.id },
-        data: {
-          name: dto.name?.trim(),
-          email: dto.email?.trim().toLowerCase(),
-          phoneNumber: dto.phone?.trim(),
-          address: dto.address?.trim(),
-          avatarUrl: dto.avatar,
-        },
+        data: dataToUpdate,
       });
 
       return {
