@@ -159,6 +159,49 @@ async function main() {
     console.log('Seeded static pages (Privacy Policy, About Us).');
   }
 
+  // Seed default Subscription Plans
+  const plansCount = await prisma.subscriptionPlan.count();
+  if (plansCount === 0) {
+    await prisma.subscriptionPlan.createMany({
+      data: [
+        {
+          name: 'Monthly Premium',
+          description: 'Full AI meal planning, smart grocery list, and household sync billed monthly',
+          price: 7.99,
+          interval: 'monthly',
+          currency: 'USD',
+          features: [
+            'Unlimited AI Weekly Meal Plans',
+            'Smart Pantry & Expiry Tracking',
+            'Automated Shopping Lists with Deductions',
+            'Family Household Sharing',
+            'Nutritional Macro Breakdown',
+          ],
+          isPopular: true,
+          isActive: true,
+        },
+        {
+          name: 'Annual Plan',
+          description: 'Save 37% with our annual subscription for continuous budget and meal optimization',
+          price: 59.88,
+          interval: 'yearly',
+          currency: 'USD',
+          features: [
+            'All Monthly Premium Features',
+            '2 Months Free (Save 37%)',
+            'Priority AI Generation Speed',
+            'Export to PDF & Excel',
+            'Dedicated 24/7 Priority Support',
+          ],
+          discountPercent: 37.0,
+          isPopular: false,
+          isActive: true,
+        },
+      ],
+    });
+    console.log('Seeded default Subscription Plans.');
+  }
+
   await prisma.$disconnect();
   await pool.end();
 }

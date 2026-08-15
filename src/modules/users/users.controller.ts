@@ -49,6 +49,17 @@ export class UsersController {
     };
   }
 
+  @Get('dashboard')
+  @ApiOperation({ summary: 'Get aggregated home dashboard summary for the current user' })
+  @ApiResponse({ status: 200, description: 'User dashboard summary retrieved successfully' })
+  async getDashboard(@CurrentUser('id') userId: string) {
+    const dashboard = await this.usersService.getUserDashboard(userId);
+    return {
+      message: 'User dashboard retrieved successfully',
+      data: dashboard,
+    };
+  }
+
   @Patch('onboarding')
   @ApiOperation({ summary: 'Update user onboarding step data and preferences' })
   @ApiResponse({ status: 200, description: 'Onboarding step updated successfully' })

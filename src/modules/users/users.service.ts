@@ -9,10 +9,14 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateOnboardingDto } from './dto/onboarding.dto';
 import * as argon2 from 'argon2';
 import { User, Prisma } from '@prisma/client';
+import { PrismaService } from '@/database/prisma.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly usersRepository: UsersRepository) {}
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async createUser(dto: CreateUserDto): Promise<Omit<User, 'passwordHash'>> {
     const existing = await this.usersRepository.findByEmail(dto.email);
@@ -200,7 +204,7 @@ export class UsersService {
 
     // Auto-populate pantry items from user's selected pantryStaples
     if (updatedUser.pantryStaples && updatedUser.pantryStaples.length > 0) {
-      const itemsToCreate = updatedUser.pantryStaples.map((staple) => ({
+      const itemsToCreate = (updatedUser.pantryStaples as string[]).map((staple: string) => ({
         userId,
         ingredientName: staple,
         category: 'Pantry Staples',
@@ -208,7 +212,7 @@ export class UsersService {
         unit: 'pcs',
         isLowStock: false,
       }));
-      await (this.usersRepository as any).prisma.pantryItem.createMany({
+      await this.prisma.pantryItem.createMany({
         data: itemsToCreate,
         skipDuplicates: true,
       });
@@ -233,4 +237,130 @@ export class UsersService {
 
     return { success: true, message: 'Password updated successfully' };
   }
+
+  /**
+   * Retrieves aggregated home dashboard metrics and status for the current user.
+   */
+  async getUserDashboard(userId: string) {
+    const user = await this.usersRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const today = new Date();
+    const threeDaysFromNow = new Date();
+    threeDaysFromNow.setDate(today.getDate() + 3);
+
+    // 1. Fetch active meal plan with items & meals
+    const activePlan = await this.prisma.mealPlan.findFirst({
+      where: { userId, status: 'ACTIVE' },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        items: {
+          include: { meal: true },
+          orderBy: [{ dayOfWeek: 'asc' }, { mealType: 'asc' }],
+        },
+      },
+    });
+
+    // 2. Fetch pantry summary & expiring items
+    const [totalPantryCount, lowStockCount, expiringCount, expiringItems] = await Promise.all([
+      this.prisma.pantryItem.count({ where: { userId } }),
+      this.prisma.pantryItem.count({ where: { userId, isLowStock: true } }),
+      this.prisma.pantryItem.count({
+        where: { userId, expiryDate: { lte: threeDaysFromNow } },
+      }),
+      this.prisma.pantryItem.findMany({
+        where: { userId, expiryDate: { lte: threeDaysFromNow } },
+        take: 3,
+        orderBy: { expiryDate: 'asc' },
+      }),
+    ]);
+
+    // 3. Pending tasks count & next upcoming tasks
+    const [pendingTasksCount, upcomingTasks] = await Promise.all([
+      this.prisma.task.count({ where: { userId, status: 'PENDING' } }),
+      this.prisma.task.findMany({
+        where: { userId, status: 'PENDING' },
+        take: 3,
+        orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+      }),
+    ]);
+
+    // 4. Cookbook & favorites stats
+    const [cookedMealsCount, favouritesCount] = await Promise.all([
+      this.prisma.cookbookLog.count({ where: { userId } }),
+      this.prisma.userFavourite.count({ where: { userId } }),
+    ]);
+
+    // 5. Compute today's planned meals
+    let todaysMeals: any[] = [];
+    if (activePlan && activePlan.items.length > 0) {
+      const planStart = new Date(activePlan.startDate);
+      const diffTime = Math.abs(today.getTime() - planStart.getTime());
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      const currentDayOfWeek = Math.min(Math.max(diffDays, 1), user.plannedDaysCount || 7);
+
+      todaysMeals = activePlan.items.filter((i) => i.dayOfWeek === currentDayOfWeek);
+      if (todaysMeals.length === 0) {
+        todaysMeals = activePlan.items.filter((i) => i.dayOfWeek === 1);
+      }
+    }
+
+    // 6. Budget progress
+    const weeklyBudget = user.weeklyBudget || 150.0;
+    const estimatedCost = activePlan?.totalEstimatedCost || 0.0;
+    const actualCost =
+      activePlan?.actualCost !== null && activePlan?.actualCost !== undefined
+        ? activePlan.actualCost
+        : estimatedCost;
+    const budgetDelta = Math.round((estimatedCost - weeklyBudget) * 100) / 100;
+    const currency = user.currency || 'USD';
+
+    return {
+      user: {
+        id: user.id,
+        name: user.name || user.firstName || 'User',
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        currency,
+        country: user.country,
+        city: user.city,
+      },
+      mealPlan: {
+        hasActivePlan: !!activePlan,
+        planId: activePlan?.id || null,
+        planStatus: activePlan?.status || 'NO_PLAN',
+        totalEstimatedCost: estimatedCost,
+        actualCost: activePlan?.actualCost || null,
+        todaysMeals,
+        totalMealsCount: activePlan?.items.length || 0,
+        cookedMealsInPlanCount: activePlan?.items.filter((i) => i.isCooked).length || 0,
+      },
+      budget: {
+        currency,
+        weeklyBudget,
+        estimatedCost,
+        actualCost,
+        budgetDelta: Math.abs(budgetDelta),
+        isOverBudget: budgetDelta > 0,
+        progressPercent: Math.min(100, Math.round((estimatedCost / weeklyBudget) * 100)),
+      },
+      pantry: {
+        totalItems: totalPantryCount,
+        lowStockCount,
+        expiringSoonCount: expiringCount,
+        expiringItems,
+      },
+      tasks: {
+        pendingCount: pendingTasksCount,
+        upcoming: upcomingTasks,
+      },
+      stats: {
+        totalMealsCooked: cookedMealsCount,
+        favouriteRecipesCount: favouritesCount,
+      },
+    };
+  }
 }
+

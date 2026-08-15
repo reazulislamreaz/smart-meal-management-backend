@@ -255,4 +255,45 @@ model StaticPage {
   @@map("static_pages")
 }
 
+model SubscriptionPlan {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  description     String?
+  price           Float    @default(7.99)
+  interval        String   @default("monthly")
+  currency        String   @default("USD")
+  features        String[] @default([])
+  discountPercent Float?   @default(0.0)
+  isPopular       Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("subscription_plans")
+}
+
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  status    String   @default("UNREAD")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("contact_messages")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+
 

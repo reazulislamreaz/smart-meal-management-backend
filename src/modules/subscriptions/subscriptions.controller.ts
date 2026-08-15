@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { SubscriptionsService } from './subscriptions.service';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { RolesGuard } from '@/common/guards/roles.guard';
+import { Public } from '@/common/decorators/public.decorator';
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth()
@@ -10,6 +11,18 @@ import { RolesGuard } from '@/common/guards/roles.guard';
 @Controller('subscriptions')
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
+
+  @Public()
+  @Get('plans')
+  @ApiOperation({ summary: 'Get all active subscription pricing plans and tiers' })
+  @ApiResponse({ status: 200, description: 'Subscription plans retrieved successfully' })
+  async getPlans() {
+    const plans = await this.subscriptionsService.getAvailablePlans();
+    return {
+      message: 'Subscription plans retrieved successfully',
+      data: plans,
+    };
+  }
 
   @Get('current')
   @ApiOperation({ summary: 'Get active subscription status for user' })

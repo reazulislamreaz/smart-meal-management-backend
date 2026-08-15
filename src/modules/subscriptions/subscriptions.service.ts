@@ -5,6 +5,13 @@ import { PrismaService } from '@/database/prisma.service';
 export class SubscriptionsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async getAvailablePlans() {
+    return this.prisma.subscriptionPlan.findMany({
+      where: { isActive: true },
+      orderBy: { price: 'asc' },
+    });
+  }
+
   async getCurrentSubscription(userId: string) {
     const sub = await this.prisma.subscription.findFirst({
       where: { userId },
