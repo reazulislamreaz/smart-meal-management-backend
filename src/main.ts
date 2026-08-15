@@ -18,10 +18,24 @@ async function bootstrap() {
   const apiPrefix = configService.get<string>('API_PREFIX') || '/api/v1';
 
   // Global Middlewares
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: false,
+      crossOriginOpenerPolicy: false,
+    }),
+  );
   app.use(compression());
   app.enableCors({
-    origin: true,
+    origin: [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3001',
+    ],
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Requested-With'],
     credentials: true,
   });
 

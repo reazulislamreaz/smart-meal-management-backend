@@ -9,12 +9,14 @@ import {
   Param,
   Query,
   ParseIntPipe,
+  ParseBoolPipe,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { RolesGuard } from '@/common/guards/roles.guard';
 import { Roles } from '@/common/decorators/roles.decorator';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { Role } from '@prisma/client';
 import {
   CreateSubscriptionPlanDto,
@@ -38,7 +40,14 @@ import {
   UpdateUserRoleDto,
 } from './dto/admin-user.dto';
 import { UpdateContactStatusDto } from './dto/contact-inquiry.dto';
-import { UpsertSettingDto } from './dto/system-settings.dto';
+import {
+  UpsertSettingDto,
+  UpdateAdminProfileDto,
+  ChangeAdminPasswordDto,
+  UpdateAppConfigDto,
+  UpdateContactSettingsDto,
+  MealOptionDto,
+} from './dto/system-settings.dto';
 
 @ApiTags('Admin Dashboard')
 @ApiBearerAuth()
@@ -62,6 +71,17 @@ export class AdminController {
     };
   }
 
+  @Get('dashboard-stats')
+  @ApiOperation({ summary: 'Get all dashboard widgets data (MiniStats, IncomeRing, Recent Users, Top Meals)' })
+  @ApiResponse({ status: 200, description: 'Dashboard stats retrieved successfully' })
+  async getDashboardStats() {
+    const data = await this.adminService.getDashboardStats();
+    return {
+      message: 'Dashboard statistics retrieved successfully',
+      data,
+    };
+  }
+
   @Get('activities')
   @ApiOperation({ summary: 'Get recent platform activities feed' })
   @ApiResponse({ status: 200, description: 'Activities feed retrieved successfully' })
@@ -74,7 +94,7 @@ export class AdminController {
   }
 
   @Get('earnings')
-  @ApiOperation({ summary: 'Get financial breakdowns and monthly revenue charts' })
+  @ApiOperation({ summary: 'Get financial breakdowns and monthly/annual revenue charts' })
   @ApiResponse({ status: 200, description: 'Earnings analytics retrieved successfully' })
   async getEarnings() {
     const data = await this.adminService.getEarningsAnalytics();
@@ -84,23 +104,66 @@ export class AdminController {
     };
   }
 
+  @Get('earnings/subscribers')
+  @ApiOperation({ summary: 'Get paginated subscriber earnings transaction logs' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'subscriptionType', required: false, type: String })
+  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
+  @ApiResponse({ status: 200, description: 'Earnings transactions retrieved successfully' })
+  async getEarningsSubscribers(
+    @Query('page', new ParseIntPipe({ optional: true })) page = 1,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 10,
+    @Query('search') search?: string,
+    @Query('subscriptionType') subscriptionType?: string,
+    @Query('sortOrder') sortOrder: 'asc' | 'desc' = 'desc',
+  ) {
+    const result = await this.adminService.listEarningsSubscribers(
+      page,
+      limit,
+      search,
+      subscriptionType,
+      sortOrder,
+    );
+    return {
+      message: 'Earnings transactions retrieved successfully',
+      data: result.data,
+      meta: result.meta,
+    };
+  }
+
   // ==========================================
   // 2. User Management & Moderation
   // ==========================================
   @Get('users')
-  @ApiOperation({ summary: 'List platform users with task completion rates and subscription tiers' })
+  @ApiOperation({ summary: 'List platform users with task completion rates, blocked status, and filters' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'role', required: false, enum: Role })
+  @ApiQuery({ name: 'isBlocked', required: false, type: Boolean })
+  @ApiQuery({ name: 'dateFrom', required: false, type: String })
+  @ApiQuery({ name: 'dateTo', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Users list retrieved successfully' })
   async getUsers(
     @Query('page', new ParseIntPipe({ optional: true })) page = 1,
     @Query('limit', new ParseIntPipe({ optional: true })) limit = 10,
     @Query('search') search?: string,
     @Query('role') role?: Role,
+    @Query('isBlocked', new ParseBoolPipe({ optional: true })) isBlocked?: boolean,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
   ) {
-    const result = await this.adminService.listUsers(page, limit, search, role);
+    const result = await this.adminService.listUsers(
+      page,
+      limit,
+      search,
+      role,
+      isBlocked,
+      dateFrom,
+      dateTo,
+    );
     return {
       message: 'Users list retrieved successfully',
       data: result.data,
@@ -116,6 +179,20 @@ export class AdminController {
     return {
       message: 'User details retrieved successfully',
       data: user,
+    };
+  }
+
+  @Patch('users/:id/block')
+  @ApiOperation({ summary: 'Toggle or set user blocked status' })
+  @ApiResponse({ status: 200, description: 'User block status updated' })
+  async toggleUserBlock(
+    @Param('id') id: string,
+    @Body() body?: { isBlocked?: boolean },
+  ) {
+    const result = await this.adminService.toggleUserBlock(id, body?.isBlocked);
+    return {
+      message: result.message,
+      data: result,
     };
   }
 
@@ -315,19 +392,21 @@ export class AdminController {
   // 5. Master Recipe Catalog Management
   // ==========================================
   @Get('meals')
-  @ApiOperation({ summary: 'List recipes in master catalog with pagination and search' })
+  @ApiOperation({ summary: 'List recipes in master catalog with pagination, category tabs, and search' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'category', required: false, type: String })
   @ApiQuery({ name: 'cuisine', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Meals retrieved successfully' })
   async listMeals(
     @Query('page', new ParseIntPipe({ optional: true })) page = 1,
     @Query('limit', new ParseIntPipe({ optional: true })) limit = 10,
     @Query('search') search?: string,
+    @Query('category') category?: string,
     @Query('cuisine') cuisine?: string,
   ) {
-    const result = await this.adminService.listMeals(page, limit, search, cuisine);
+    const result = await this.adminService.listMeals(page, limit, search, category, cuisine);
     return {
       message: 'Meals retrieved successfully',
       data: result.data,
@@ -380,7 +459,46 @@ export class AdminController {
   }
 
   // ==========================================
-  // 6. Promotional Coupons
+  // 6. Dietary & Cuisine Taxonomy Options
+  // ==========================================
+  @Get('meal-options')
+  @ApiOperation({ summary: 'Get dietary options and cuisine types' })
+  @ApiResponse({ status: 200, description: 'Meal taxonomy options retrieved successfully' })
+  async getMealOptions() {
+    const options = await this.adminService.getMealOptions();
+    return {
+      message: 'Meal options retrieved successfully',
+      data: options,
+    };
+  }
+
+  @Post('meal-options')
+  @ApiOperation({ summary: 'Add a new dietary option or cuisine type' })
+  @ApiResponse({ status: 201, description: 'Meal option added successfully' })
+  async addMealOption(@Body() dto: MealOptionDto) {
+    const options = await this.adminService.addMealOption(dto.type, dto.value);
+    return {
+      message: `${dto.type === 'diet' ? 'Dietary option' : 'Cuisine type'} added successfully`,
+      data: options,
+    };
+  }
+
+  @Delete('meal-options')
+  @ApiOperation({ summary: 'Remove a dietary option or cuisine type' })
+  @ApiResponse({ status: 200, description: 'Meal option removed successfully' })
+  async removeMealOption(
+    @Query('type') type: 'diet' | 'cuisine',
+    @Query('value') value: string,
+  ) {
+    const options = await this.adminService.removeMealOption(type, value);
+    return {
+      message: `${type === 'diet' ? 'Dietary option' : 'Cuisine type'} removed successfully`,
+      data: options,
+    };
+  }
+
+  // ==========================================
+  // 7. Promotional Coupons
   // ==========================================
   @Get('coupons')
   @ApiOperation({ summary: 'List promotional coupon codes with search and active status filter' })
@@ -457,7 +575,7 @@ export class AdminController {
   }
 
   // ==========================================
-  // 7. Contact / Support Inquiries Management
+  // 8. Contact / Support Inquiries Management
   // ==========================================
   @Get('contacts')
   @ApiOperation({ summary: 'List user contact messages and support inquiries' })
@@ -515,21 +633,71 @@ export class AdminController {
   }
 
   // ==========================================
-  // 8. Platform System Settings
+  // 9. Platform System Settings & Profile
   // ==========================================
   @Get('settings')
-  @ApiOperation({ summary: 'Get global platform settings' })
+  @ApiOperation({ summary: 'Get full admin settings (profile, preferences, appConfig, bannersCopy, contact)' })
   @ApiResponse({ status: 200, description: 'Platform settings retrieved successfully' })
-  async getSettings() {
-    const settings = await this.adminService.getSettings();
+  async getSettings(@CurrentUser('id') userId?: string) {
+    const settings = await this.adminService.getSettings(userId);
     return {
       message: 'Platform settings retrieved successfully',
       data: settings,
     };
   }
 
+  @Put('settings/profile')
+  @ApiOperation({ summary: 'Update admin profile details' })
+  @ApiResponse({ status: 200, description: 'Admin profile updated successfully' })
+  async updateAdminProfile(
+    @CurrentUser('id') userId: string | undefined,
+    @Body() dto: UpdateAdminProfileDto,
+  ) {
+    const updated = await this.adminService.updateAdminProfile(userId, dto);
+    return {
+      message: 'Profile updated successfully',
+      data: updated,
+    };
+  }
+
+  @Put('settings/password')
+  @ApiOperation({ summary: 'Change admin password' })
+  @ApiResponse({ status: 200, description: 'Admin password changed successfully' })
+  async changeAdminPassword(
+    @CurrentUser('id') userId: string | undefined,
+    @Body() dto: ChangeAdminPasswordDto,
+  ) {
+    const result = await this.adminService.changeAdminPassword(userId, dto);
+    return {
+      message: result.message,
+      data: result,
+    };
+  }
+
+  @Put('settings/app-config')
+  @ApiOperation({ summary: 'Update app configuration and banners copy' })
+  @ApiResponse({ status: 200, description: 'App configuration updated successfully' })
+  async updateAppConfig(@Body() dto: UpdateAppConfigDto) {
+    const updated = await this.adminService.updateAppConfig(dto);
+    return {
+      message: 'App configuration updated successfully',
+      data: updated,
+    };
+  }
+
+  @Put('settings/contact')
+  @ApiOperation({ summary: 'Update contact information settings' })
+  @ApiResponse({ status: 200, description: 'Contact settings updated successfully' })
+  async updateContactSettings(@Body() dto: UpdateContactSettingsDto) {
+    const updated = await this.adminService.updateContactSettings(dto);
+    return {
+      message: 'Contact settings updated successfully',
+      data: updated,
+    };
+  }
+
   @Put('settings')
-  @ApiOperation({ summary: 'Update or set a platform setting' })
+  @ApiOperation({ summary: 'Update or set a generic platform setting' })
   @ApiResponse({ status: 200, description: 'Platform setting updated successfully' })
   async updateSetting(@Body() dto: UpsertSettingDto) {
     const setting = await this.adminService.upsertSetting(dto);
@@ -540,7 +708,7 @@ export class AdminController {
   }
 
   // ==========================================
-  // 9. Audit Logs
+  // 10. Audit Logs
   // ==========================================
   @Get('audit-logs')
   @ApiOperation({ summary: 'Get administrative security audit trail logs' })

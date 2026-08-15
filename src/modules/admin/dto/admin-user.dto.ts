@@ -69,6 +69,15 @@ export class AdminUpdateUserDto {
   @IsOptional()
   @IsString()
   city?: string;
+
+  @ApiPropertyOptional({ example: '123 Baker Street, London, UK' })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  isBlocked?: boolean;
 }
 
 export class UpdateUserRoleDto {

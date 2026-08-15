@@ -34,9 +34,11 @@ model User {
   currency               String        @default("USD")
   country                String?
   city                   String?
+  address                String?
   onboardingStep         Int           @default(1)
   isOnboardingCompleted  Boolean       @default(false)
   isEmailVerified        Boolean       @default(false)
+  isBlocked              Boolean       @default(false)
   avatarUrl              String?
   passwordResetToken  String?
   passwordResetExpires DateTime?
@@ -97,6 +99,8 @@ model Meal {
   servings        Int            @default(4)
   estimatedCost   Float          @default(15.0)
   cuisine         String         @default("American")
+  mealType        String         @default("Dinner")
+  status          String         @default("Active")
   dietaryTags     String[]       @default([])
   instructions    String[]       @default([])
   ingredients     Json           @default("[]")

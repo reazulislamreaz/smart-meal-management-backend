@@ -12,6 +12,7 @@ describe('AdminService', () => {
       count: jest.fn().mockResolvedValue(100),
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
+      findFirst: jest.fn().mockResolvedValue({ id: 'user-1', email: 'admin@sizzl.com', name: 'Admin', role: Role.SUPER_ADMIN }),
       create: jest.fn().mockResolvedValue({ id: 'user-1', email: 'test@example.com' }),
       update: jest.fn().mockResolvedValue({ id: 'user-1', role: Role.SUPER_ADMIN }),
       delete: jest.fn().mockResolvedValue({ id: 'user-1' }),
@@ -62,8 +63,12 @@ describe('AdminService', () => {
       delete: jest.fn().mockResolvedValue({ id: 'msg-1' }),
     },
     systemSetting: {
-      findMany: jest.fn().mockResolvedValue([{ key: 'defaultCurrency', value: 'GBP' }]),
+      findMany: jest.fn().mockResolvedValue([{ key: 'config_trialDays', value: '7' }]),
+      findUnique: jest.fn().mockResolvedValue(null),
       upsert: jest.fn().mockResolvedValue({ key: 'defaultCurrency', value: 'USD' }),
+    },
+    staticPage: {
+      findUnique: jest.fn().mockResolvedValue({ content: 'Test content' }),
     },
     auditLog: {
       findMany: jest.fn().mockResolvedValue([]),
@@ -133,7 +138,8 @@ describe('AdminService', () => {
 
   it('should get and upsert platform settings', async () => {
     const settings = await service.getSettings();
-    expect(settings.defaultCurrency).toBe('GBP');
+    expect(settings.profile).toBeDefined();
+    expect(settings.appConfig).toBeDefined();
 
     const updated = await service.upsertSetting({ key: 'defaultCurrency', value: 'USD' });
     expect(updated.value).toBe('USD');

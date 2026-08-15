@@ -78,6 +78,16 @@ export class CreateAdminMealDto {
   @IsArray()
   ingredients?: any[];
 
+  @ApiPropertyOptional({ example: 'Dinner', default: 'Dinner' })
+  @IsOptional()
+  @IsString()
+  mealType?: string;
+
+  @ApiPropertyOptional({ example: 'Active', default: 'Active' })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
   @ApiPropertyOptional({
     example: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288',
     description: 'Image URL',
@@ -120,6 +130,16 @@ export class UpdateAdminMealDto {
   @IsOptional()
   @IsString()
   cuisine?: string;
+
+  @ApiPropertyOptional({ example: 'Dinner' })
+  @IsOptional()
+  @IsString()
+  mealType?: string;
+
+  @ApiPropertyOptional({ example: 'Active' })
+  @IsOptional()
+  @IsString()
+  status?: string;
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
