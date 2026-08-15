@@ -326,7 +326,7 @@ export class AdminService {
   }
 
   async getUserDetails(id: string) {
-    const user = await this.prisma.user.findUnique({
+    let user = await this.prisma.user.findUnique({
       where: { id },
       include: {
         subscriptions: { orderBy: { createdAt: 'desc' } },
@@ -341,6 +341,50 @@ export class AdminService {
         auditLogs: { take: 5, orderBy: { createdAt: 'desc' } },
       },
     });
+
+    if (!user && id.includes('@')) {
+      user = await this.prisma.user.findUnique({
+        where: { email: id },
+        include: {
+          subscriptions: { orderBy: { createdAt: 'desc' } },
+          pantryItems: { take: 10, orderBy: { createdAt: 'desc' } },
+          tasks: { take: 10, orderBy: { createdAt: 'desc' } },
+          mealPlans: { take: 10, orderBy: { createdAt: 'desc' } },
+          cookbookLogs: {
+            take: 5,
+            orderBy: { cookedAt: 'desc' },
+            include: { meal: { select: { title: true } } },
+          },
+          auditLogs: { take: 5, orderBy: { createdAt: 'desc' } },
+        },
+      });
+    }
+
+    if (!user) {
+      const numericIndex = parseInt(id, 10);
+      if (!isNaN(numericIndex) && numericIndex > 0) {
+        const matchingUsers = await this.prisma.user.findMany({
+          skip: Math.max(0, numericIndex - 1),
+          take: 1,
+          orderBy: { createdAt: 'asc' },
+          include: {
+            subscriptions: { orderBy: { createdAt: 'desc' } },
+            pantryItems: { take: 10, orderBy: { createdAt: 'desc' } },
+            tasks: { take: 10, orderBy: { createdAt: 'desc' } },
+            mealPlans: { take: 10, orderBy: { createdAt: 'desc' } },
+            cookbookLogs: {
+              take: 5,
+              orderBy: { cookedAt: 'desc' },
+              include: { meal: { select: { title: true } } },
+            },
+            auditLogs: { take: 5, orderBy: { createdAt: 'desc' } },
+          },
+        });
+        if (matchingUsers.length > 0) {
+          user = matchingUsers[0];
+        }
+      }
+    }
 
     if (!user) {
       throw new NotFoundException(`User with ID "${id}" not found`);
@@ -371,14 +415,31 @@ export class AdminService {
   }
 
   async toggleUserBlock(id: string, isBlocked?: boolean) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
+    let user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user && id.includes('@')) {
+      user = await this.prisma.user.findUnique({ where: { email: id } });
+    }
+    if (!user) {
+      const numericIndex = parseInt(id, 10);
+      if (!isNaN(numericIndex) && numericIndex > 0) {
+        const matchingUsers = await this.prisma.user.findMany({
+          skip: Math.max(0, numericIndex - 1),
+          take: 1,
+          orderBy: { createdAt: 'asc' },
+        });
+        if (matchingUsers.length > 0) {
+          user = matchingUsers[0];
+        }
+      }
+    }
+
     if (!user) {
       throw new NotFoundException(`User with ID "${id}" not found`);
     }
 
     const newBlockedState = isBlocked !== undefined ? isBlocked : !user.isBlocked;
     const updated = await this.prisma.user.update({
-      where: { id },
+      where: { id: user.id },
       data: { isBlocked: newBlockedState },
     });
 

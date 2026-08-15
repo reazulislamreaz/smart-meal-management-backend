@@ -4,14 +4,41 @@ import { Pool } from 'pg';
 import * as argon2 from 'argon2';
 
 const AVATARS = [
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+  'https://i.pravatar.cc/96?img=12',
+  'https://i.pravatar.cc/96?img=32',
+  'https://i.pravatar.cc/96?img=47',
+  'https://i.pravatar.cc/96?img=5',
+  'https://i.pravatar.cc/96?img=15',
+  'https://i.pravatar.cc/96?img=11',
+  'https://i.pravatar.cc/96?img=59',
+];
+
+const RAW_USERS = [
+  ["01", "Bashar Islam",   "Bashar@gmail.com",           "(+44) 201234", "Rangpur",   "2025-03-12 09:30 AM"],
+  ["02", "Amina Rahman",   "amina.rahman@example.com",   "777-555",      "Dhaka",     "2025-04-15 11:00 AM"],
+  ["03", "Karim Hossain",  "karim.h@example.com",        "666-444",      "Chittagong","2025-05-20 02:15 PM"],
+  ["04", "Sadia Akter",    "sadiaakter@mail.com",        "888-123",      "Sylhet",    "2025-06-10 10:00 AM"],
+  ["05", "Tariq Mahmud",   "tariq.mahmud@mail.com",      "555-678",      "Khulna",    "2025-07-05 03:30 PM"],
+  ["06", "Nusrat Jahan",   "nusrat.j@example.com",       "444-321",      "Rajshahi",  "2025-08-22 01:45 PM"],
+  ["07", "Imran Khan",     "imran.khan@mail.com",        "333-999",      "Barisal",   "2025-09-18 04:00 PM"],
+  ["08", "Rashed Karim",   "rashed.k@example.com",       "222-456",      "Mymensingh","2025-10-03 09:00 AM"],
+  ["09", "Nadia Islam",    "nadia.i@example.com",        "111-789",      "Dhaka",     "2025-10-14 11:30 AM"],
+  ["10", "Farhan Ahmed",   "farhan.a@example.com",       "999-012",      "Comilla",   "2025-11-01 02:00 PM"],
+  ["11", "Tasnim Haque",   "tasnim.h@example.com",       "888-345",      "Jessore",   "2025-11-18 10:45 AM"],
+  ["12", "Omar Faruq",     "omar.f@example.com",         "777-678",      "Rangpur",   "2025-12-05 03:15 PM"],
+  ["13", "Sumaiya Begum",  "sumaiya.b@example.com",      "666-901",      "Sylhet",    "2025-12-20 01:00 PM"],
+  ["14", "Mahfuz Alam",    "mahfuz.a@example.com",       "555-234",      "Dhaka",     "2026-01-08 09:30 AM"],
+  ["15", "Rubina Khatun",  "rubina.k@example.com",       "444-567",      "Chittagong","2026-01-22 11:15 AM"],
+  ["16", "Jubayer Hossain","jubayer.h@example.com",      "333-890",      "Khulna",    "2026-02-10 02:45 PM"],
+  ["17", "Lamia Sultana",  "lamia.s@example.com",        "222-123",      "Rajshahi",  "2026-02-25 10:00 AM"],
+  ["18", "Sabbir Rahman",  "sabbir.r@example.com",       "111-456",      "Barisal",   "2026-03-12 04:30 PM"],
+  ["19", "Farzana Islam",  "farzana.i@example.com",      "999-789",      "Mymensingh","2026-03-28 09:15 AM"],
+  ["20", "Raihan Uddin",   "raihan.u@example.com",       "888-012",      "Comilla",   "2026-04-15 01:30 PM"],
+  ["21", "Mim Akhter",     "mim.a@example.com",          "777-345",      "Dhaka",     "2026-04-28 10:30 AM"],
+  ["22", "Nasir Hossain",  "nasir.h@example.com",        "666-678",      "Jessore",   "2026-05-10 03:00 PM"],
+  ["23", "Roksana Begum",  "roksana.b@example.com",      "555-901",      "Sylhet",    "2026-05-22 11:45 AM"],
+  ["24", "Shakil Ahmed",   "shakil.a@example.com",       "444-234",      "Rangpur",   "2026-06-05 02:15 PM"],
+  ["25", "Tania Rahman",   "tania.r@example.com",        "333-567",      "Dhaka",     "2026-06-18 09:00 AM"],
 ];
 
 async function main() {
@@ -26,7 +53,7 @@ async function main() {
 
   const passwordHash = await argon2.hash('AdminPassword123!');
 
-  // 1. Seed Super Admin users (both admin@sizzl.com and admin@smartmeal.com)
+  // 1. Seed Super Admin users
   const adminEmails = [
     { email: 'admin@sizzl.com', firstName: 'Bashar', lastName: 'Islam' },
     { email: 'admin@smartmeal.com', firstName: 'Super', lastName: 'Admin' },
@@ -46,8 +73,8 @@ async function main() {
           name: `${adminData.firstName} ${adminData.lastName}`,
           role: Role.SUPER_ADMIN,
           isEmailVerified: true,
-          phoneNumber: '+1 181 948 8101',
-          address: '742 Evergreen Terrace, Springfield, OR',
+          phoneNumber: '(+44) 201234',
+          address: 'Rangpur',
           avatarUrl: AVATARS[0],
         },
       });
@@ -65,105 +92,54 @@ async function main() {
     }
   }
 
-  // 2. Seed realistic platform users
-  const sampleUsers = [
-    {
-      name: 'Michael Rahman',
-      email: 'michael.rahman@example.com',
-      phone: '+1 202 555 0143',
-      address: '450 West 33rd St, New York, NY',
-      plan: 'Annual Plan',
-      isBlocked: false,
-    },
-    {
-      name: 'Philips Mark',
-      email: 'philips.mark@example.com',
-      phone: '+1 415 555 0192',
-      address: '789 Mission St, San Francisco, CA',
-      plan: 'Monthly Premium',
-      isBlocked: false,
-    },
-    {
-      name: 'James Dekker',
-      email: 'james.dekker@example.com',
-      phone: '+1 312 555 0177',
-      address: '120 N LaSalle St, Chicago, IL',
-      plan: 'Free Trial',
-      isBlocked: true,
-    },
-    {
-      name: 'Eliza Hernandez',
-      email: 'eliza.h@example.com',
-      phone: '+1 713 555 0184',
-      address: '1001 Texas Ave, Houston, TX',
-      plan: 'Annual Plan',
-      isBlocked: false,
-    },
-    {
-      name: 'Marco Williams',
-      email: 'marco.williams@example.com',
-      phone: '+1 617 555 0111',
-      address: '200 Clarendon St, Boston, MA',
-      plan: 'Monthly Premium',
-      isBlocked: true,
-    },
-    {
-      name: 'Sarah Jenkins',
-      email: 'sarah.j@example.com',
-      phone: '+1 206 555 0165',
-      address: '1301 2nd Ave, Seattle, WA',
-      plan: 'Annual Plan',
-      isBlocked: false,
-    },
-    {
-      name: 'David Miller',
-      email: 'david.miller@example.com',
-      phone: '+1 305 555 0128',
-      address: '1111 Brickell Ave, Miami, FL',
-      plan: 'Monthly Premium',
-      isBlocked: false,
-    },
-    {
-      name: 'Emma Watson',
-      email: 'emma.watson@example.com',
-      phone: '+1 404 555 0139',
-      address: '191 Peachtree St, Atlanta, GA',
-      plan: 'Annual Plan',
-      isBlocked: false,
-    },
-  ];
-
+  // 2. Seed all 25 platform users
   const userPasswordHash = await argon2.hash('UserPassword123!');
+  const blockedList = ["03", "05"];
 
-  for (let i = 0; i < sampleUsers.length; i++) {
-    const u = sampleUsers[i];
-    const nameParts = u.name.split(' ');
+  for (let i = 0; i < RAW_USERS.length; i++) {
+    const [no, fullName, emailRaw, phone, address, dateStr] = RAW_USERS[i];
+    const email = emailRaw.trim().toLowerCase();
+    const nameParts = fullName.trim().split(' ');
+    const isBlocked = blockedList.includes(no);
+
     const existing = await prisma.user.findUnique({
-      where: { email: u.email },
+      where: { email },
     });
 
     let dbUser = existing;
     if (!existing) {
       dbUser = await prisma.user.create({
         data: {
-          email: u.email,
+          email,
           passwordHash: userPasswordHash,
           firstName: nameParts[0],
           lastName: nameParts.slice(1).join(' '),
-          name: u.name,
-          phoneNumber: u.phone,
-          address: u.address,
+          name: fullName,
+          phoneNumber: phone,
+          address,
           role: Role.USER,
           isEmailVerified: true,
-          isBlocked: u.isBlocked,
-          avatarUrl: AVATARS[(i + 1) % AVATARS.length],
-          weeklyBudget: 120 + i * 15,
+          isBlocked,
+          avatarUrl: AVATARS[i % AVATARS.length],
+          weeklyBudget: 120 + i * 10,
+          createdAt: new Date(dateStr.split(' ')[0]),
+        },
+      });
+    } else {
+      dbUser = await prisma.user.update({
+        where: { email },
+        data: {
+          name: fullName,
+          phoneNumber: phone,
+          address,
+          isBlocked,
+          avatarUrl: AVATARS[i % AVATARS.length],
         },
       });
     }
 
-    // Ensure subscription exists
     if (dbUser) {
+      const planName = i % 2 === 0 ? 'Annual Plan' : 'Monthly Premium';
       const existingSub = await prisma.subscription.findFirst({
         where: { userId: dbUser.id },
       });
@@ -171,14 +147,13 @@ async function main() {
         await prisma.subscription.create({
           data: {
             userId: dbUser.id,
-            planName: u.plan,
+            planName,
             status: 'ACTIVE',
             currentPeriodEnd: new Date('2027-01-01'),
           },
         });
       }
 
-      // Add sample tasks
       const taskCount = await prisma.task.count({ where: { userId: dbUser.id } });
       if (taskCount === 0) {
         await prisma.task.createMany({
@@ -252,7 +227,7 @@ async function main() {
     {
       title: 'Chicken & Veg Traybake',
       mealType: 'Dinner',
-      cuisine: 'Mediterranean',
+      cuisine: 'British',
       prepTimeMinutes: 25,
       servings: 4,
       estimatedCost: 7.5,
@@ -267,7 +242,7 @@ async function main() {
     {
       title: 'Salmon Rice Bowls',
       mealType: 'Dinner',
-      cuisine: 'Japanese',
+      cuisine: 'Asian',
       prepTimeMinutes: 20,
       servings: 4,
       estimatedCost: 8.0,
@@ -280,9 +255,9 @@ async function main() {
     },
     {
       title: 'Halloumi & Couscous',
-      mealType: 'Dinner',
+      mealType: 'Lunch',
       cuisine: 'Mediterranean',
-      prepTimeMinutes: 15,
+      prepTimeMinutes: 28,
       servings: 4,
       estimatedCost: 6.0,
       dietaryTags: ['VEGETARIAN'],
@@ -293,91 +268,102 @@ async function main() {
       ],
     },
     {
-      title: 'Avocado Toast & Poached Egg',
-      mealType: 'Breakfast',
-      cuisine: 'American',
-      prepTimeMinutes: 10,
-      servings: 2,
-      estimatedCost: 4.5,
-      dietaryTags: ['VEGETARIAN', 'HIGH_PROTEIN'],
-      instructions: ['Toast sourdough slices', 'Mash avocado with lime and salt', 'Poach eggs and top'],
-      ingredients: [
-        { name: 'Sourdough bread', category: 'Bakery', quantity: '2 slices' },
-        { name: 'Avocado', category: 'Produce', quantity: '1 pc' },
-        { name: 'Eggs', category: 'Dairy', quantity: '2 pcs' },
-      ],
-    },
-    {
-      title: 'Overnight Chia Pudding',
+      title: 'Overnight Oats',
       mealType: 'Breakfast',
       cuisine: 'American',
       prepTimeMinutes: 5,
       servings: 2,
-      estimatedCost: 3.5,
+      estimatedCost: 2.0,
       dietaryTags: ['VEGAN', 'GLUTEN_FREE'],
-      instructions: ['Mix chia seeds with almond milk and maple syrup', 'Refrigerate overnight', 'Top with berries'],
+      instructions: ['Mix oats with milk and honey', 'Refrigerate overnight', 'Top with fruits'],
       ingredients: [
-        { name: 'Chia seeds', category: 'Pantry Staples', quantity: '4 tbsp' },
+        { name: 'Rolled oats', category: 'Pantry Staples', quantity: '1 cup' },
         { name: 'Almond milk', category: 'Dairy', quantity: '1 cup' },
-        { name: 'Berries', category: 'Produce', quantity: '1/2 cup' },
       ],
     },
     {
-      title: 'Chicken Caesar Wraps',
-      mealType: 'Lunch',
-      cuisine: 'American',
-      prepTimeMinutes: 15,
-      servings: 4,
-      estimatedCost: 5.5,
-      dietaryTags: ['HIGH_PROTEIN'],
-      instructions: ['Cook chicken breast', 'Mix salad with Caesar dressing', 'Wrap in tortillas'],
-      ingredients: [
-        { name: 'Chicken breast', category: 'Meat & Fish', quantity: '400g' },
-        { name: 'Tortillas', category: 'Bakery', quantity: '4 pcs' },
-        { name: 'Romaine lettuce', category: 'Produce', quantity: '1 head' },
-      ],
-    },
-    {
-      title: 'Greek Quinoa Salad',
-      mealType: 'Lunch',
-      cuisine: 'Mediterranean',
-      prepTimeMinutes: 15,
-      servings: 4,
-      estimatedCost: 6.2,
-      dietaryTags: ['VEGETARIAN', 'GLUTEN_FREE'],
-      instructions: ['Cook quinoa', 'Chop cucumbers, olives, and feta', 'Toss with vinaigrette'],
-      ingredients: [
-        { name: 'Quinoa', category: 'Pantry Staples', quantity: '200g' },
-        { name: 'Feta cheese', category: 'Dairy', quantity: '150g' },
-        { name: 'Cucumbers', category: 'Produce', quantity: '2 pcs' },
-      ],
-    },
-    {
-      title: 'Beef Chilli Jackets',
+      title: 'Veggie Curry',
       mealType: 'Dinner',
-      cuisine: 'Mexican',
-      prepTimeMinutes: 30,
+      cuisine: 'Indian',
+      prepTimeMinutes: 25,
       servings: 4,
-      estimatedCost: 7.2,
-      dietaryTags: ['HIGH_PROTEIN', 'HALAL'],
-      instructions: ['Bake potatoes', 'Simmer minced beef with spices', 'Top with sour cream and cheddar'],
+      estimatedCost: 5.0,
+      dietaryTags: ['VEGETARIAN', 'HALAL'],
+      instructions: ['Sauté onions and spices', 'Add chickpeas and coconut milk', 'Simmer for 20 mins'],
+      ingredients: [
+        { name: 'Chickpeas', category: 'Pantry Staples', quantity: '1 can' },
+        { name: 'Coconut milk', category: 'Pantry Staples', quantity: '1 can' },
+      ],
+    },
+    {
+      title: 'Beef Chili Jackets',
+      mealType: 'Dinner',
+      cuisine: 'British',
+      prepTimeMinutes: 50,
+      servings: 4,
+      estimatedCost: 7.0,
+      dietaryTags: ['HIGH_PROTEIN'],
+      instructions: ['Bake potatoes', 'Simmer minced beef with chilli', 'Top with cheese'],
       ingredients: [
         { name: 'Beef mince', category: 'Meat & Fish', quantity: '500g' },
         { name: 'Potatoes', category: 'Produce', quantity: '4 large' },
       ],
     },
     {
-      title: 'Italian Pasta Primavera',
+      title: 'Greek Salad Jars',
+      mealType: 'Lunch',
+      cuisine: 'Mediterranean',
+      prepTimeMinutes: 15,
+      servings: 4,
+      estimatedCost: 5.8,
+      dietaryTags: ['VEGETARIAN', 'GLUTEN_FREE'],
+      instructions: ['Layer dressing, cucumbers, tomatoes, and feta into jars'],
+      ingredients: [
+        { name: 'Cucumbers', category: 'Produce', quantity: '2 pcs' },
+        { name: 'Feta cheese', category: 'Dairy', quantity: '150g' },
+      ],
+    },
+    {
+      title: 'Pesto Chicken Pasta',
       mealType: 'Dinner',
       cuisine: 'Italian',
       prepTimeMinutes: 20,
       servings: 4,
-      estimatedCost: 5.8,
-      dietaryTags: ['VEGETARIAN'],
-      instructions: ['Boil penne pasta al dente', 'Sauté zucchini and cherry tomatoes', 'Toss with parmesan'],
+      estimatedCost: 7.0,
+      dietaryTags: ['HIGH_PROTEIN'],
+      instructions: ['Boil pasta', 'Sear sliced chicken', 'Stir in basil pesto'],
       ingredients: [
         { name: 'Penne pasta', category: 'Pantry Staples', quantity: '400g' },
-        { name: 'Parmesan', category: 'Dairy', quantity: '80g' },
+        { name: 'Chicken breast', category: 'Meat & Fish', quantity: '400g' },
+        { name: 'Pesto', category: 'Pantry Staples', quantity: '1 jar' },
+      ],
+    },
+    {
+      title: 'Shakshuka',
+      mealType: 'Breakfast',
+      cuisine: 'Middle Eastern',
+      prepTimeMinutes: 20,
+      servings: 4,
+      estimatedCost: 4.0,
+      dietaryTags: ['VEGETARIAN'],
+      instructions: ['Simmer spiced tomato sauce', 'Crack eggs into sauce', 'Cover until poached'],
+      ingredients: [
+        { name: 'Eggs', category: 'Dairy', quantity: '4 pcs' },
+        { name: 'Canned tomatoes', category: 'Pantry Staples', quantity: '1 can' },
+      ],
+    },
+    {
+      title: 'Falafel Pittas',
+      mealType: 'Lunch',
+      cuisine: 'Middle Eastern',
+      prepTimeMinutes: 15,
+      servings: 4,
+      estimatedCost: 5.0,
+      dietaryTags: ['VEGETARIAN', 'HALAL'],
+      instructions: ['Warm pitta breads', 'Fill with crispy falafels, salad, and tahini'],
+      ingredients: [
+        { name: 'Falafels', category: 'Produce', quantity: '12 pcs' },
+        { name: 'Pitta bread', category: 'Bakery', quantity: '4 pcs' },
       ],
     },
   ];
@@ -448,31 +434,7 @@ async function main() {
     });
   }
 
-  // 6. Seed Static Pages (Privacy Policy, About Us)
-  const staticPages = [
-    {
-      slug: 'privacy-policy',
-      title: 'Privacy Policy',
-      content:
-        'Smart Meal Management (Sizzl) values your privacy. We collect household preferences, dietary requirements, and budget targets solely to generate personalized meal plans and inventory estimates. Your data is encrypted and never sold to third parties.',
-    },
-    {
-      slug: 'about-us',
-      title: 'About us',
-      content:
-        'Sizzl is an AI-driven smart meal planning, grocery inventory, and domestic task delegation ecosystem created to eliminate food waste, reduce household friction, and optimize weekly grocery spend.',
-    },
-  ];
-
-  for (const page of staticPages) {
-    await prisma.staticPage.upsert({
-      where: { slug: page.slug },
-      update: { title: page.title, content: page.content },
-      create: page,
-    });
-  }
-
-  console.log('Database seeded successfully with SuperAdmin, users, meals, plans, and settings!');
+  console.log('Database seeded successfully with all 25 users, meals, plans, and settings!');
 
   await prisma.$disconnect();
   await pool.end();

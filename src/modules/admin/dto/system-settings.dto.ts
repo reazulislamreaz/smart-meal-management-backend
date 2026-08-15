@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsArray, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, MinLength } from 'class-validator';
 
 export class UpsertSettingDto {
   @ApiProperty({ example: 'defaultCurrency', description: 'Setting key name' })
@@ -38,6 +38,16 @@ export class UpdateAdminProfileDto {
   @IsOptional()
   @IsString()
   address?: string;
+
+  @ApiPropertyOptional({ example: 'Admin' })
+  @IsOptional()
+  @IsString()
+  role?: string;
+
+  @ApiPropertyOptional({ example: 'January' })
+  @IsOptional()
+  @IsString()
+  memberSince?: string;
 
   @ApiPropertyOptional({ example: 'https://i.pravatar.cc/96?img=12' })
   @IsOptional()
@@ -90,6 +100,7 @@ export class UpdateAppConfigDto {
     paywallHeadline?: string;
     onboardingWelcome?: string;
     planCompleteMessage?: string;
+    [key: string]: any;
   };
 }
 
