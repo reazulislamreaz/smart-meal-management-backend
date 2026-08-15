@@ -39,4 +39,9 @@ export const envValidationSchema = Joi.object({
   AWS_ACCESS_KEY_ID: Joi.string().optional(),
   AWS_SECRET_ACCESS_KEY: Joi.string().optional(),
   AWS_REGION: Joi.string().optional(),
+
+  CHATGPT_OPENAI_KEY: Joi.string().allow('').optional(),
+  OPENAI_API_KEY: Joi.string().allow('').optional(),
+  OPENAI_MODEL: Joi.string().default('gpt-4o-mini'),
 });
+

@@ -17,6 +17,8 @@ import * as crypto from 'crypto';
 import { Role } from '@prisma/client';
 
 import { MailService } from '@/modules/mail/mail.service';
+import { IpLocationService } from '@/common/services/ip-location.service';
+import { Request } from 'express';
 
 @Injectable()
 export class AuthService {
@@ -26,6 +28,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
+    private readonly ipLocationService: IpLocationService,
   ) {}
 
   private hashTokenWithHmac(token: string): string {
@@ -35,13 +38,19 @@ export class AuthService {
     return crypto.createHmac('sha256', secret).update(token).digest('hex');
   }
 
-  async register(dto: RegisterDto) {
+  async detectLocation(req?: Request) {
+    return this.ipLocationService.resolveLocation(req);
+  }
+
+  async register(dto: RegisterDto, req?: Request) {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
     if (existing) {
       throw new ConflictException('User with this email already exists');
     }
+
+    const detectedLocation = await this.ipLocationService.resolveLocation(req);
 
     const passwordHash = await argon2.hash(dto.password);
     const nameParts = dto.fullName.trim().split(' ');
@@ -61,12 +70,16 @@ export class AuthService {
         phoneNumber,
         role: Role.USER,
         weeklyBudget: 150.0,
+        country: detectedLocation.country,
+        city: detectedLocation.city,
+        currency: detectedLocation.currency,
       },
     });
 
     const { passwordHash: _, ...sanitizedUser } = user;
     return {
       user: sanitizedUser,
+      detectedLocation,
     };
   }
 

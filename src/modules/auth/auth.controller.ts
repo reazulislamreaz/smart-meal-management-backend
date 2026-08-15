@@ -28,13 +28,25 @@ export class AuthController {
 
   @Public()
   @Post('register')
-  @ApiOperation({ summary: 'Register end user' })
+  @ApiOperation({ summary: 'Register end user with automatic IP-based location detection' })
   @ApiResponse({ status: 201, description: 'User registered successfully' })
-  async register(@Body() registerDto: RegisterDto) {
-    const result = await this.authService.register(registerDto);
+  async register(@Body() registerDto: RegisterDto, @Req() req: Request) {
+    const result = await this.authService.register(registerDto, req);
     return {
       message: 'User registered successfully',
       data: result,
+    };
+  }
+
+  @Public()
+  @Get('detect-location')
+  @ApiOperation({ summary: 'Auto-detect client country and city from IP (Defaults to United Kingdom)' })
+  @ApiResponse({ status: 200, description: 'Location resolved successfully' })
+  async detectLocation(@Req() req: Request) {
+    const location = await this.authService.detectLocation(req);
+    return {
+      message: 'Client location detected successfully',
+      data: location,
     };
   }
 

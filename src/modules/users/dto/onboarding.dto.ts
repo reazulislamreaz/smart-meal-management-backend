@@ -121,6 +121,39 @@ export class UpdateOnboardingDto {
   cuisinePreferences?: string[];
 
   @ApiPropertyOptional({
+    example: 'DISCOUNT',
+    description: 'Preferred supermarket tier or chain (e.g. DISCOUNT / STANDARD / PREMIUM_ORGANIC or Aldi, Whole Foods)',
+  })
+  @IsOptional()
+  @IsString()
+  preferredStoreType?: string;
+
+  @ApiPropertyOptional({
+    example: 'USD',
+    description: 'Currency ISO code (e.g. USD, GBP, EUR, CAD, AUD)',
+    default: 'USD',
+  })
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @ApiPropertyOptional({
+    example: 'United States',
+    description: 'User Country for regional price calibration',
+  })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiPropertyOptional({
+    example: 'Chicago',
+    description: 'User City / Metro area',
+  })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional({
     example: false,
     description: 'Mark onboarding flow as complete',
   })

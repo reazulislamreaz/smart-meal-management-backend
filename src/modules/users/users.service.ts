@@ -128,6 +128,18 @@ export class UsersService {
     if (dto.cuisinePreferences !== undefined) {
       updateData.cuisinePreferences = dto.cuisinePreferences;
     }
+    if (dto.preferredStoreType !== undefined) {
+      updateData.preferredStoreType = dto.preferredStoreType;
+    }
+    if (dto.currency !== undefined) {
+      updateData.currency = dto.currency;
+    }
+    if (dto.country !== undefined) {
+      updateData.country = dto.country;
+    }
+    if (dto.city !== undefined) {
+      updateData.city = dto.city;
+    }
     if (dto.onboardingStep !== undefined) {
       updateData.onboardingStep = dto.onboardingStep;
     }
@@ -171,6 +183,10 @@ export class UsersService {
         pantryStaples: user.pantryStaples,
         dietaryRestrictions: user.dietaryRestrictions,
         cuisinePreferences: user.cuisinePreferences,
+        preferredStoreType: user.preferredStoreType,
+        currency: user.currency,
+        country: user.country,
+        city: user.city,
       },
     };
   }

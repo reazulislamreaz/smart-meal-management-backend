@@ -30,6 +30,10 @@ model User {
   pantryStaples          String[]      @default([])
   cuisinePreferences     String[]      @default([])
   dietaryRestrictions    String[]      @default([])
+  preferredStoreType     String        @default("STANDARD")
+  currency               String        @default("USD")
+  country                String?
+  city                   String?
   onboardingStep         Int           @default(1)
   isOnboardingCompleted  Boolean       @default(false)
   isEmailVerified        Boolean       @default(false)

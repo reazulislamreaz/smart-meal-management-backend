@@ -27,6 +27,8 @@ import { CookbookModule } from './modules/cookbook/cookbook.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ContentModule } from './modules/content/content.module';
+import { AiModule } from './modules/ai/ai.module';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -93,6 +95,8 @@ import { ContentModule } from './modules/content/content.module';
     SubscriptionsModule,
     AdminModule,
     ContentModule,
+    AiModule,
+    CommonModule,
   ],
   providers: [
     {
