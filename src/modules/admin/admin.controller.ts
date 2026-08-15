@@ -11,15 +11,34 @@ import {
   ParseIntPipe,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
-import {
-  AdminService,
-  CreateSubscriptionPlanDto,
-  UpdateSubscriptionPlanDto,
-} from './admin.service';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { AdminService } from './admin.service';
 import { RolesGuard } from '@/common/guards/roles.guard';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import {
+  CreateSubscriptionPlanDto,
+  UpdateSubscriptionPlanDto,
+} from './dto/subscription-plan.dto';
+import {
+  AssignSubscriptionDto,
+  UpdateSubscriberStatusDto,
+} from './dto/subscriber-management.dto';
+import {
+  CreateCouponDto,
+  UpdateCouponDto,
+} from './dto/coupon.dto';
+import {
+  CreateAdminMealDto,
+  UpdateAdminMealDto,
+} from './dto/admin-meal.dto';
+import {
+  AdminCreateUserDto,
+  AdminUpdateUserDto,
+  UpdateUserRoleDto,
+} from './dto/admin-user.dto';
+import { UpdateContactStatusDto } from './dto/contact-inquiry.dto';
+import { UpsertSettingDto } from './dto/system-settings.dto';
 
 @ApiTags('Admin Dashboard')
 @ApiBearerAuth()
@@ -66,7 +85,7 @@ export class AdminController {
   }
 
   // ==========================================
-  // 2. User Management
+  // 2. User Management & Moderation
   // ==========================================
   @Get('users')
   @ApiOperation({ summary: 'List platform users with task completion rates and subscription tiers' })
@@ -100,14 +119,36 @@ export class AdminController {
     };
   }
 
+  @Post('users')
+  @ApiOperation({ summary: 'Create a new user account (Admin only)' })
+  @ApiResponse({ status: 201, description: 'User created successfully' })
+  async createUser(@Body() dto: AdminCreateUserDto) {
+    const user = await this.adminService.createUser(dto);
+    return {
+      message: 'User created successfully',
+      data: user,
+    };
+  }
+
+  @Put('users/:id')
+  @ApiOperation({ summary: 'Update user profile (Admin only)' })
+  @ApiResponse({ status: 200, description: 'User updated successfully' })
+  async updateUser(@Param('id') id: string, @Body() dto: AdminUpdateUserDto) {
+    const user = await this.adminService.updateUser(id, dto);
+    return {
+      message: 'User profile updated successfully',
+      data: user,
+    };
+  }
+
   @Patch('users/:id/role')
   @ApiOperation({ summary: 'Update user role (SUPER_ADMIN or USER)' })
   @ApiResponse({ status: 200, description: 'User role updated successfully' })
   async updateUserRole(
     @Param('id') id: string,
-    @Body('role') role: Role,
+    @Body() dto: UpdateUserRoleDto,
   ) {
-    const updated = await this.adminService.updateUserRole(id, role);
+    const updated = await this.adminService.updateUserRole(id, dto.role);
     return {
       message: 'User role updated successfully',
       data: updated,
@@ -126,7 +167,7 @@ export class AdminController {
   }
 
   // ==========================================
-  // 3. Subscription Pricing Plans Management (NEW)
+  // 3. Subscription Pricing Plans Management
   // ==========================================
   @Get('subscription-plans')
   @ApiOperation({ summary: 'List all subscription pricing plans with active subscriber counts' })
@@ -239,9 +280,9 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Subscriber status updated successfully' })
   async updateSubscriberStatus(
     @Param('id') id: string,
-    @Body('status') status: string,
+    @Body() dto: UpdateSubscriberStatusDto,
   ) {
-    const sub = await this.adminService.updateSubscriberStatus(id, status);
+    const sub = await this.adminService.updateSubscriberStatus(id, dto.status);
     return {
       message: 'Subscriber status updated successfully',
       data: sub,
@@ -251,9 +292,7 @@ export class AdminController {
   @Post('subscriptions/assign')
   @ApiOperation({ summary: 'Manually assign or extend a subscription plan for a user' })
   @ApiResponse({ status: 201, description: 'Subscription assigned successfully' })
-  async assignSubscription(
-    @Body() dto: { userId: string; planName: string; durationDays?: number },
-  ) {
+  async assignSubscription(@Body() dto: AssignSubscriptionDto) {
     const sub = await this.adminService.assignSubscription(dto);
     return {
       message: 'Subscription assigned successfully',
@@ -310,7 +349,7 @@ export class AdminController {
   @Post('meals')
   @ApiOperation({ summary: 'Add a new recipe to master catalog' })
   @ApiResponse({ status: 201, description: 'Recipe created successfully' })
-  async createMeal(@Body() dto: any) {
+  async createMeal(@Body() dto: CreateAdminMealDto) {
     const meal = await this.adminService.createMeal(dto);
     return {
       message: 'Recipe added to catalog successfully',
@@ -321,7 +360,7 @@ export class AdminController {
   @Put('meals/:id')
   @ApiOperation({ summary: 'Update recipe in master catalog' })
   @ApiResponse({ status: 200, description: 'Recipe updated successfully' })
-  async updateMeal(@Param('id') id: string, @Body() dto: any) {
+  async updateMeal(@Param('id') id: string, @Body() dto: UpdateAdminMealDto) {
     const meal = await this.adminService.updateMeal(id, dto);
     return {
       message: 'Recipe updated successfully',
@@ -373,9 +412,7 @@ export class AdminController {
   @Post('coupons')
   @ApiOperation({ summary: 'Create a new promotional coupon code' })
   @ApiResponse({ status: 201, description: 'Coupon created successfully' })
-  async createCoupon(
-    @Body() dto: { code: string; discountPercent: number; validUntil?: string; maxRedemptions?: number },
-  ) {
+  async createCoupon(@Body() dto: CreateCouponDto) {
     const coupon = await this.adminService.createCoupon(dto);
     return {
       message: 'Coupon created successfully',
@@ -388,7 +425,7 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Coupon updated successfully' })
   async updateCoupon(
     @Param('id') id: string,
-    @Body() dto: { discountPercent?: number; validUntil?: string; maxRedemptions?: number },
+    @Body() dto: UpdateCouponDto,
   ) {
     const coupon = await this.adminService.updateCoupon(id, dto);
     return {
@@ -420,7 +457,7 @@ export class AdminController {
   }
 
   // ==========================================
-  // 7. Contact / Support Inquiries Management (NEW)
+  // 7. Contact / Support Inquiries Management
   // ==========================================
   @Get('contacts')
   @ApiOperation({ summary: 'List user contact messages and support inquiries' })
@@ -457,9 +494,9 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Contact message status updated' })
   async updateContactStatus(
     @Param('id') id: string,
-    @Body('status') status: string,
+    @Body() dto: UpdateContactStatusDto,
   ) {
-    const message = await this.adminService.updateContactStatus(id, status);
+    const message = await this.adminService.updateContactStatus(id, dto.status);
     return {
       message: 'Contact message status updated successfully',
       data: message,
@@ -478,7 +515,7 @@ export class AdminController {
   }
 
   // ==========================================
-  // 8. Platform System Settings (NEW)
+  // 8. Platform System Settings
   // ==========================================
   @Get('settings')
   @ApiOperation({ summary: 'Get global platform settings' })
@@ -494,12 +531,10 @@ export class AdminController {
   @Put('settings')
   @ApiOperation({ summary: 'Update or set a platform setting' })
   @ApiResponse({ status: 200, description: 'Platform setting updated successfully' })
-  async updateSetting(
-    @Body() body: { key: string; value: string; description?: string },
-  ) {
-    const setting = await this.adminService.upsertSetting(body.key, body.value, body.description);
+  async updateSetting(@Body() dto: UpsertSettingDto) {
+    const setting = await this.adminService.upsertSetting(dto);
     return {
-      message: `Setting "${body.key}" updated successfully`,
+      message: `Setting "${dto.key}" updated successfully`,
       data: setting,
     };
   }

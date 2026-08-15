@@ -6,30 +6,27 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/database/prisma.service';
 import { Role } from '@prisma/client';
-
-export interface CreateSubscriptionPlanDto {
-  name: string;
-  description?: string;
-  price: number;
-  interval?: string;
-  currency?: string;
-  features?: string[];
-  discountPercent?: number;
-  isPopular?: boolean;
-  isActive?: boolean;
-}
-
-export interface UpdateSubscriptionPlanDto {
-  name?: string;
-  description?: string;
-  price?: number;
-  interval?: string;
-  currency?: string;
-  features?: string[];
-  discountPercent?: number;
-  isPopular?: boolean;
-  isActive?: boolean;
-}
+import * as argon2 from 'argon2';
+import {
+  CreateSubscriptionPlanDto,
+  UpdateSubscriptionPlanDto,
+} from './dto/subscription-plan.dto';
+import {
+  AssignSubscriptionDto,
+} from './dto/subscriber-management.dto';
+import {
+  CreateCouponDto,
+  UpdateCouponDto,
+} from './dto/coupon.dto';
+import {
+  CreateAdminMealDto,
+  UpdateAdminMealDto,
+} from './dto/admin-meal.dto';
+import {
+  AdminCreateUserDto,
+  AdminUpdateUserDto,
+} from './dto/admin-user.dto';
+import { UpsertSettingDto } from './dto/system-settings.dto';
 
 @Injectable()
 export class AdminService {
@@ -110,7 +107,7 @@ export class AdminService {
   }
 
   // ==========================================
-  // 2. User Management
+  // 2. User Management & Moderation
   // ==========================================
   async listUsers(page = 1, limit = 10, search?: string, roleFilter?: Role) {
     const skip = (page - 1) * limit;
@@ -190,6 +187,59 @@ export class AdminService {
     return result;
   }
 
+  async createUser(dto: AdminCreateUserDto) {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase().trim() },
+    });
+    if (existing) {
+      throw new ConflictException('User with this email already exists');
+    }
+
+    const passwordHash = await argon2.hash(dto.password);
+    const nameParts = dto.fullName.trim().split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email.toLowerCase().trim(),
+        passwordHash,
+        name: dto.fullName.trim(),
+        firstName,
+        lastName,
+        role: dto.role || Role.USER,
+        phoneNumber: dto.phone || null,
+        weeklyBudget: 150.0,
+        isEmailVerified: true,
+      },
+    });
+
+    const { passwordHash: _, ...sanitized } = user;
+    return sanitized;
+  }
+
+  async updateUser(id: string, dto: AdminUpdateUserDto) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) {
+      throw new NotFoundException(`User with ID "${id}" not found`);
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: {
+        name: dto.name?.trim(),
+        phoneNumber: dto.phoneNumber,
+        role: dto.role,
+        weeklyBudget: dto.weeklyBudget !== undefined ? Number(dto.weeklyBudget) : undefined,
+        country: dto.country,
+        city: dto.city,
+      },
+    });
+
+    const { passwordHash: _, ...sanitized } = updated;
+    return sanitized;
+  }
+
   async updateUserRole(id: string, role: Role) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) {
@@ -216,14 +266,13 @@ export class AdminService {
   }
 
   // ==========================================
-  // 3. Subscription Pricing Plans Management (NEW)
+  // 3. Subscription Pricing Plans Management
   // ==========================================
   async listSubscriptionPlans() {
     const plans = await this.prisma.subscriptionPlan.findMany({
       orderBy: { price: 'asc' },
     });
 
-    // Count subscribers for each plan
     const subCounts = await this.prisma.subscription.groupBy({
       by: ['planName'],
       where: { status: 'ACTIVE' },
@@ -279,7 +328,9 @@ export class AdminService {
         where: { name: dto.name.trim() },
       });
       if (existing) {
-        throw new ConflictException(`Another subscription plan with name "${dto.name}" already exists`);
+        throw new ConflictException(
+          `Another subscription plan with name "${dto.name}" already exists`,
+        );
       }
     }
 
@@ -292,7 +343,8 @@ export class AdminService {
         interval: dto.interval,
         currency: dto.currency,
         features: dto.features,
-        discountPercent: dto.discountPercent !== undefined ? Number(dto.discountPercent) : undefined,
+        discountPercent:
+          dto.discountPercent !== undefined ? Number(dto.discountPercent) : undefined,
         isPopular: dto.isPopular,
         isActive: dto.isActive,
       },
@@ -409,13 +461,14 @@ export class AdminService {
     });
   }
 
-  async assignSubscription(dto: { userId: string; planName: string; durationDays?: number }) {
+  async assignSubscription(dto: AssignSubscriptionDto) {
     const user = await this.prisma.user.findUnique({ where: { id: dto.userId } });
     if (!user) {
       throw new NotFoundException(`User with ID "${dto.userId}" not found`);
     }
 
-    const duration = dto.durationDays || (dto.planName.toLowerCase().includes('annual') ? 365 : 30);
+    const duration =
+      dto.durationDays || (dto.planName.toLowerCase().includes('annual') ? 365 : 30);
     const periodEnd = new Date();
     periodEnd.setDate(periodEnd.getDate() + duration);
 
@@ -488,7 +541,7 @@ export class AdminService {
     return meal;
   }
 
-  async createMeal(dto: any) {
+  async createMeal(dto: CreateAdminMealDto) {
     return this.prisma.meal.create({
       data: {
         title: dto.title,
@@ -505,7 +558,7 @@ export class AdminService {
     });
   }
 
-  async updateMeal(id: string, dto: any) {
+  async updateMeal(id: string, dto: UpdateAdminMealDto) {
     const meal = await this.prisma.meal.findUnique({ where: { id } });
     if (!meal) {
       throw new NotFoundException(`Meal with ID "${id}" not found`);
@@ -516,7 +569,8 @@ export class AdminService {
       data: {
         title: dto.title,
         description: dto.description,
-        prepTimeMinutes: dto.prepTimeMinutes !== undefined ? Number(dto.prepTimeMinutes) : undefined,
+        prepTimeMinutes:
+          dto.prepTimeMinutes !== undefined ? Number(dto.prepTimeMinutes) : undefined,
         servings: dto.servings !== undefined ? Number(dto.servings) : undefined,
         estimatedCost: dto.estimatedCost !== undefined ? Number(dto.estimatedCost) : undefined,
         cuisine: dto.cuisine,
@@ -576,12 +630,7 @@ export class AdminService {
     return coupon;
   }
 
-  async createCoupon(dto: {
-    code: string;
-    discountPercent: number;
-    validUntil?: string;
-    maxRedemptions?: number;
-  }) {
+  async createCoupon(dto: CreateCouponDto) {
     const existing = await this.prisma.coupon.findUnique({
       where: { code: dto.code.trim().toUpperCase() },
     });
@@ -600,10 +649,7 @@ export class AdminService {
     });
   }
 
-  async updateCoupon(
-    id: string,
-    dto: { discountPercent?: number; validUntil?: string; maxRedemptions?: number },
-  ) {
+  async updateCoupon(id: string, dto: UpdateCouponDto) {
     const coupon = await this.prisma.coupon.findUnique({ where: { id } });
     if (!coupon) {
       throw new NotFoundException(`Coupon with ID "${id}" not found`);
@@ -614,7 +660,8 @@ export class AdminService {
       data: {
         discountPercent:
           dto.discountPercent !== undefined ? Number(dto.discountPercent) : undefined,
-        validUntil: dto.validUntil !== undefined ? (dto.validUntil ? new Date(dto.validUntil) : null) : undefined,
+        validUntil:
+          dto.validUntil !== undefined ? (dto.validUntil ? new Date(dto.validUntil) : null) : undefined,
         maxRedemptions:
           dto.maxRedemptions !== undefined ? Number(dto.maxRedemptions) : undefined,
       },
@@ -644,7 +691,7 @@ export class AdminService {
   }
 
   // ==========================================
-  // 7. Contact / Feedback Messages Management (NEW)
+  // 7. Contact / Feedback Messages Management
   // ==========================================
   async listContactMessages(status?: string, page = 1, limit = 10) {
     const skip = (page - 1) * limit;
@@ -723,7 +770,7 @@ export class AdminService {
   }
 
   // ==========================================
-  // 9. Platform System Settings (NEW)
+  // 9. Platform System Settings
   // ==========================================
   async getSettings() {
     const settings = await this.prisma.systemSetting.findMany();
@@ -740,11 +787,11 @@ export class AdminService {
     };
   }
 
-  async upsertSetting(key: string, value: string, description?: string) {
+  async upsertSetting(dto: UpsertSettingDto) {
     return this.prisma.systemSetting.upsert({
-      where: { key },
-      update: { value, description },
-      create: { key, value, description },
+      where: { key: dto.key },
+      update: { value: dto.value, description: dto.description },
+      create: { key: dto.key, value: dto.value, description: dto.description },
     });
   }
 
