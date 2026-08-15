@@ -35,15 +35,15 @@ import {
   UpdateContactSettingsDto,
 } from './dto/system-settings.dto';
 
-const DEFAULT_AVATARS = [
-  'https://i.pravatar.cc/96?img=12',
-  'https://i.pravatar.cc/96?img=32',
-  'https://i.pravatar.cc/96?img=47',
-  'https://i.pravatar.cc/96?img=5',
-  'https://i.pravatar.cc/96?img=11',
-  'https://i.pravatar.cc/96?img=15',
-  'https://i.pravatar.cc/96?img=59',
-];
+const DEFAULT_AVATAR =
+  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
+
+export function sanitizeAvatarUrl(url?: string | null, _name = 'User', _index = 0): string {
+  if (!url || url.includes('s3.eu-north-1.amazonaws.com') || url.includes('sample.jpg') || url.trim() === '') {
+    return DEFAULT_AVATAR;
+  }
+  return url;
+}
 
 @Injectable()
 export class AdminService {
@@ -120,7 +120,7 @@ export class AdminService {
         name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email.split('@')[0],
         email: u.email,
         plan: planType,
-        avatar: u.avatarUrl || DEFAULT_AVATARS[(i + 1) % DEFAULT_AVATARS.length],
+        avatar: sanitizeAvatarUrl(u.avatarUrl, u.name || u.email, i + 1),
       };
     });
 
@@ -298,7 +298,7 @@ export class AdminService {
         address,
         joiningDate: joinDate,
         joiningTime: formattedTime,
-        avatar: u.avatarUrl || DEFAULT_AVATARS[i % DEFAULT_AVATARS.length],
+        avatar: sanitizeAvatarUrl(u.avatarUrl, displayName, i),
         currentPlan: planName,
         taskCompletionRate,
         isBlocked: !!u.isBlocked,
@@ -483,7 +483,7 @@ export class AdminService {
       phone,
       address,
       joiningDate,
-      avatar: user.avatarUrl || DEFAULT_AVATARS[0],
+      avatar: sanitizeAvatarUrl(user.avatarUrl, displayName, 0),
       currentPlan: activeSubscription?.planName || 'Annual',
       activeMeals: user.mealPlans.length || 10,
       totalSpend,
@@ -941,7 +941,7 @@ export class AdminService {
         sl: String((page - 1) * limit + i + 1).padStart(2, '0'),
         userName: displayName,
         email: u.email,
-        avatar: u.avatarUrl || DEFAULT_AVATARS[i % DEFAULT_AVATARS.length],
+        avatar: sanitizeAvatarUrl(u.avatarUrl, displayName, i),
         subscriptionType: subType,
         price,
         expireDate,
@@ -1446,7 +1446,7 @@ export class AdminService {
       memberSince: adminUser?.createdAt
         ? new Date(adminUser.createdAt).toLocaleString('en-US', { month: 'long' })
         : 'January',
-      avatar: adminUser?.avatarUrl || DEFAULT_AVATARS[0],
+      avatar: sanitizeAvatarUrl(adminUser?.avatarUrl, adminUser?.name || 'Super Admin', 0),
     };
 
     const preferences = {
@@ -1529,7 +1529,7 @@ export class AdminService {
         address: updated.address || 'USA',
         role: 'Admin',
         memberSince: updated.createdAt.toLocaleString('en-US', { month: 'long' }),
-        avatar: updated.avatarUrl || DEFAULT_AVATARS[0],
+        avatar: sanitizeAvatarUrl(updated.avatarUrl, updated.name || 'Super Admin', 0),
       };
     }
 
@@ -1540,7 +1540,7 @@ export class AdminService {
       address: dto.address || 'USA',
       role: 'Admin',
       memberSince: 'January',
-      avatar: dto.avatar || DEFAULT_AVATARS[0],
+      avatar: dto.avatar || DEFAULT_AVATAR,
     };
   }
 
