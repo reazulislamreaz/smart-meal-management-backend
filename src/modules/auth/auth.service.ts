@@ -76,6 +76,22 @@ export class AuthService {
       },
     });
 
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'USER_REGISTERED',
+        entity: 'User',
+        entityId: user.id,
+        details: {
+          email: user.email,
+          name: user.name,
+          country: user.country,
+          city: user.city,
+        },
+        ipAddress: req?.ip || '127.0.0.1',
+      },
+    }).catch(() => null);
+
     const { passwordHash: _, ...sanitizedUser } = user;
     return {
       user: sanitizedUser,
@@ -97,6 +113,21 @@ export class AuthService {
     if (!isValidPassword) {
       throw new UnauthorizedException('Invalid email or password');
     }
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: user.role === Role.SUPER_ADMIN ? 'ADMIN_LOGIN' : 'USER_LOGIN',
+        entity: 'Auth',
+        entityId: user.id,
+        details: {
+          email: user.email,
+          role: user.role,
+          userAgent: userAgent || 'Browser',
+        },
+        ipAddress: ipAddress || '127.0.0.1',
+      },
+    }).catch(() => null);
 
     const tokenPair = await this.generateTokenPair(
       user.id,

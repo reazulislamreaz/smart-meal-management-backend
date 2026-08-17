@@ -62,6 +62,18 @@ export class TasksService {
         status: 'PENDING',
       },
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'TASK_CREATED',
+        entity: 'Task',
+        entityId: task.id,
+        details: { title: task.title, status: task.status },
+        ipAddress: '127.0.0.1',
+      },
+    }).catch(() => null);
+
     return task;
   }
 
@@ -78,6 +90,17 @@ export class TasksService {
       where: { id },
       data: { status },
     });
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'TASK_STATUS_UPDATED',
+        entity: 'Task',
+        entityId: updatedTask.id,
+        details: { title: updatedTask.title, previousStatus: task.status, newStatus: status },
+        ipAddress: '127.0.0.1',
+      },
+    }).catch(() => null);
 
     return updatedTask;
   }

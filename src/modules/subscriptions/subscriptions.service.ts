@@ -63,8 +63,35 @@ export class SubscriptionsService {
         await this.prisma.couponRedemption.create({
           data: { couponId: coupon.id, userId },
         });
+        await this.prisma.auditLog.create({
+          data: {
+            userId,
+            action: 'COUPON_REDEEMED',
+            entity: 'Coupon',
+            entityId: coupon.id,
+            details: { code: coupon.code, discountPercent: coupon.discountPercent },
+            ipAddress: '127.0.0.1',
+          },
+        }).catch(() => null);
       }
     }
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId,
+        action: 'SUBSCRIPTION_CHECKOUT',
+        entity: 'Subscription',
+        entityId: sub.id,
+        details: {
+          planName,
+          finalPricePaid: finalPrice,
+          originalPrice: price,
+          discountPercent,
+          periodEnd: periodEnd.toISOString(),
+        },
+        ipAddress: '127.0.0.1',
+      },
+    }).catch(() => null);
 
     return {
       subscription: sub,

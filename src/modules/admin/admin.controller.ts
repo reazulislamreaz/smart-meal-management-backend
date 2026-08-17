@@ -735,16 +735,46 @@ export class AdminController {
   @ApiOperation({ summary: 'Get administrative security audit trail logs' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'action', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Audit logs retrieved successfully' })
   async getAuditLogs(
     @Query('page', new ParseIntPipe({ optional: true })) page = 1,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit = 20,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit = 10,
+    @Query('search') search?: string,
+    @Query('action') action?: string,
   ) {
-    const result = await this.adminService.getAuditLogs(page, limit);
+    const result = await this.adminService.getAuditLogs(page, limit, search, action);
     return {
       message: 'Audit logs retrieved successfully',
       data: result.data,
       meta: result.meta,
+    };
+  }
+
+  @Delete('audit-logs/cleanup')
+  @ApiOperation({ summary: 'Prune audit logs older than N days (keeps only the last N days, default 30 days)' })
+  @ApiQuery({ name: 'days', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Old audit logs pruned successfully' })
+  async cleanupAuditLogs(
+    @Query('days', new ParseIntPipe({ optional: true })) days = 30,
+    @CurrentUser('id') userId?: string,
+  ) {
+    const result = await this.adminService.cleanupAuditLogs(days, userId);
+    return {
+      message: result.message,
+      data: result,
+    };
+  }
+
+  @Delete('audit-logs/clear-all')
+  @ApiOperation({ summary: 'Clear all administrative audit logs' })
+  @ApiResponse({ status: 200, description: 'All audit logs cleared successfully' })
+  async clearAllAuditLogs(@CurrentUser('id') userId?: string) {
+    const result = await this.adminService.clearAllAuditLogs(userId);
+    return {
+      message: result.message,
+      data: result,
     };
   }
 }

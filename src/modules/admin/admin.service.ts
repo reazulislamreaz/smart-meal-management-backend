@@ -1744,9 +1744,9 @@ export class AdminService {
   }
 
   // ==========================================
-  // 11. Audit Logs
+  // 11. Audit Logs & Retention Management
   // ==========================================
-  async getAuditLogs(page = 1, limit = 20) {
+  async getAuditLogs(page = 1, limit = 10, search?: string, actionFilter?: string) {
     let total = await this.prisma.auditLog.count();
     if (total === 0) {
       const adminUser = await this.prisma.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
@@ -1791,11 +1791,26 @@ export class AdminService {
           },
         ],
       });
-      total = await this.prisma.auditLog.count();
     }
 
+    const where: any = {};
+    if (actionFilter) {
+      where.action = { contains: actionFilter, mode: 'insensitive' };
+    }
+    if (search) {
+      where.OR = [
+        { action: { contains: search, mode: 'insensitive' } },
+        { entity: { contains: search, mode: 'insensitive' } },
+        { ipAddress: { contains: search, mode: 'insensitive' } },
+        { user: { email: { contains: search, mode: 'insensitive' } } },
+        { user: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const filteredTotal = await this.prisma.auditLog.count({ where });
     const skip = (page - 1) * limit;
     const logs = await this.prisma.auditLog.findMany({
+      where,
       skip,
       take: limit,
       orderBy: { createdAt: 'desc' },
@@ -1804,7 +1819,64 @@ export class AdminService {
 
     return {
       data: logs,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) || 1 },
+      meta: {
+        total: filteredTotal,
+        page,
+        limit,
+        totalPages: Math.ceil(filteredTotal / limit) || 1,
+      },
+    };
+  }
+
+  async cleanupAuditLogs(days = 30, adminUserId?: string) {
+    const safeDays = Math.max(1, Number(days) || 30);
+    const cutoffDate = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000);
+
+    const deleted = await this.prisma.auditLog.deleteMany({
+      where: {
+        createdAt: {
+          lt: cutoffDate,
+        },
+      },
+    });
+
+    await this.recordAuditLog(
+      'AUDIT_LOGS_PRUNED',
+      'AuditLog',
+      null,
+      {
+        deletedCount: deleted.count,
+        retentionDays: safeDays,
+        cutoffDate: cutoffDate.toISOString(),
+      },
+      adminUserId,
+    );
+
+    return {
+      success: true,
+      deletedCount: deleted.count,
+      retentionDays: safeDays,
+      message: `Successfully pruned ${deleted.count} audit logs older than ${safeDays} days. Retained the last ${safeDays} days of logs.`,
+    };
+  }
+
+  async clearAllAuditLogs(adminUserId?: string) {
+    const deleted = await this.prisma.auditLog.deleteMany();
+
+    await this.recordAuditLog(
+      'AUDIT_LOGS_CLEARED',
+      'AuditLog',
+      null,
+      {
+        deletedCount: deleted.count,
+      },
+      adminUserId,
+    );
+
+    return {
+      success: true,
+      deletedCount: deleted.count,
+      message: `Successfully cleared ${deleted.count} historical audit log entries.`,
     };
   }
 }
