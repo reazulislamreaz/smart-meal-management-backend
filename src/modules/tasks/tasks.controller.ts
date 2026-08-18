@@ -6,7 +6,6 @@ import { RolesGuard } from '@/common/guards/roles.guard';
 
 @ApiTags('Tasks')
 @ApiBearerAuth()
-@UseGuards(RolesGuard)
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}

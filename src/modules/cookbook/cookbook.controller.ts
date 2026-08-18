@@ -6,7 +6,6 @@ import { RolesGuard } from '@/common/guards/roles.guard';
 
 @ApiTags('Cookbook & Favourites')
 @ApiBearerAuth()
-@UseGuards(RolesGuard)
 @Controller('meals')
 export class CookbookController {
   constructor(private readonly cookbookService: CookbookService) {}

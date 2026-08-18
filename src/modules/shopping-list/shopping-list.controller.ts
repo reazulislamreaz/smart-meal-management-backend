@@ -6,7 +6,6 @@ import { RolesGuard } from '@/common/guards/roles.guard';
 
 @ApiTags('Shopping List')
 @ApiBearerAuth()
-@UseGuards(RolesGuard)
 @Controller('shopping-list')
 export class ShoppingListController {
   constructor(private readonly shoppingListService: ShoppingListService) {}

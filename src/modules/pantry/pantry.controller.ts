@@ -7,7 +7,6 @@ import { RolesGuard } from '@/common/guards/roles.guard';
 
 @ApiTags('Pantry')
 @ApiBearerAuth()
-@UseGuards(RolesGuard)
 @Controller('pantry')
 export class PantryController {
   constructor(private readonly pantryService: PantryService) {}

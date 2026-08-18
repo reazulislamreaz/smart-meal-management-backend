@@ -22,12 +22,12 @@ import { Role } from '@prisma/client';
 
 @ApiTags('Users')
 @ApiBearerAuth()
-@UseGuards(RolesGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
+  @UseGuards(RolesGuard)
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Create a new user (Admin only)' })
   @ApiResponse({ status: 201, description: 'User created successfully' })
@@ -128,6 +128,7 @@ export class UsersController {
   }
 
   @Get()
+  @UseGuards(RolesGuard)
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Get all users paginated (Admin only)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -145,6 +146,7 @@ export class UsersController {
   }
 
   @Get(':id')
+  @UseGuards(RolesGuard)
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Get user by ID (Admin only)' })
   async findOne(@Param('id') id: string) {
@@ -156,6 +158,7 @@ export class UsersController {
   }
 
   @Patch(':id')
+  @UseGuards(RolesGuard)
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Update user profile by ID (Admin only)' })
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
@@ -167,6 +170,7 @@ export class UsersController {
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Delete user by ID (Super Admin only)' })
   async remove(@Param('id') id: string) {

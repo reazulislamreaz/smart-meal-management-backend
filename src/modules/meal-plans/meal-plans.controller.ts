@@ -26,7 +26,6 @@ import { CreateMealPlanDto } from './dto/create-meal-plan.dto';
 
 @ApiTags('Meal Plans')
 @ApiBearerAuth()
-@UseGuards(RolesGuard)
 @Controller('meal-plans')
 export class MealPlansController {
   constructor(private readonly mealPlansService: MealPlansService) {}

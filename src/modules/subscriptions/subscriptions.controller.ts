@@ -7,7 +7,6 @@ import { Public } from '@/common/decorators/public.decorator';
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth()
-@UseGuards(RolesGuard)
 @Controller('subscriptions')
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
