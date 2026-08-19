@@ -23,6 +23,7 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { RolesGuard } from '@/common/guards/roles.guard';
 import { GenerateMealPlanDto } from './dto/generate-meal-plan.dto';
 import { CreateMealPlanDto } from './dto/create-meal-plan.dto';
+import { UpdateMealPlanItemDto } from './dto/update-meal-plan-item.dto';
 
 @ApiTags('Meal Plans')
 @ApiBearerAuth()
@@ -133,6 +134,35 @@ export class MealPlansController {
     return {
       message: 'Meal swapped successfully',
       data: item,
+    };
+  }
+
+  @Patch('items/:itemId')
+  @ApiOperation({ summary: 'Update a planned meal item (day of week, meal slot, status)' })
+  @ApiResponse({ status: 200, description: 'Meal plan item updated successfully' })
+  async updateMealItem(
+    @CurrentUser('id') userId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdateMealPlanItemDto,
+  ) {
+    const item = await this.mealPlansService.updateMealPlanItem(userId, itemId, dto);
+    return {
+      message: 'Meal plan item updated successfully',
+      data: item,
+    };
+  }
+
+  @Delete('items/:itemId')
+  @ApiOperation({ summary: 'Remove a planned meal item from the current meal plan' })
+  @ApiResponse({ status: 200, description: 'Meal plan item removed successfully' })
+  async deleteMealItem(
+    @CurrentUser('id') userId: string,
+    @Param('itemId') itemId: string,
+  ) {
+    const result = await this.mealPlansService.deleteMealPlanItem(userId, itemId);
+    return {
+      message: result.message,
+      data: result,
     };
   }
 }

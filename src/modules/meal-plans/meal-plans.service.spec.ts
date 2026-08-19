@@ -58,6 +58,7 @@ describe('MealPlansService', () => {
         })),
       },
       mealPlan: {
+        update: jest.fn().mockResolvedValue({}),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         create: jest.fn().mockImplementation((args) => ({
           id: 'plan-123',
@@ -74,6 +75,7 @@ describe('MealPlansService', () => {
         findUnique: jest.fn().mockResolvedValue(null),
         update: jest.fn().mockResolvedValue({}),
         findMany: jest.fn().mockResolvedValue([]),
+        delete: jest.fn().mockResolvedValue({}),
       },
     };
 
@@ -184,5 +186,65 @@ describe('MealPlansService', () => {
 
     expect(result.generationType).toBe('CATALOG_FALLBACK');
     expect(result.plan).toBeDefined();
+  });
+
+  it('should update a meal plan item successfully', async () => {
+    mockPrismaService.mealPlanItem.findUnique.mockResolvedValue({
+      id: 'item-1',
+      mealPlanId: 'plan-123',
+      mealId: 'meal-1',
+      dayOfWeek: 1,
+      mealType: 'LUNCH',
+      mealPlan: { userId: 'user-123' },
+    });
+
+    mockPrismaService.mealPlanItem.update.mockResolvedValue({
+      id: 'item-1',
+      dayOfWeek: 3,
+      mealType: 'DINNER',
+      meal: { id: 'meal-1', title: 'Grilled Salmon Bowl' },
+    });
+
+    const result = await service.updateMealPlanItem('user-123', 'item-1', {
+      dayOfWeek: 3,
+      mealType: 'DINNER',
+    });
+
+    expect(mockPrismaService.mealPlanItem.update).toHaveBeenCalledWith({
+      where: { id: 'item-1' },
+      data: { dayOfWeek: 3, mealType: 'DINNER' },
+      include: { meal: true },
+    });
+    expect(result.mealType).toBe('DINNER');
+  });
+
+  it('should delete a meal plan item and recalculate plan cost', async () => {
+    mockPrismaService.mealPlanItem.findUnique.mockResolvedValue({
+      id: 'item-1',
+      mealPlanId: 'plan-123',
+      mealId: 'meal-1',
+      mealPlan: { userId: 'user-123' },
+    });
+
+    mockPrismaService.mealPlanItem.delete.mockResolvedValue({ id: 'item-1' });
+    mockPrismaService.mealPlanItem.findMany.mockResolvedValue([
+      { id: 'item-2', meal: { estimatedCost: 20.0 } },
+    ]);
+    mockPrismaService.mealPlan.update.mockResolvedValue({
+      id: 'plan-123',
+      totalEstimatedCost: 20.0,
+    });
+
+    const result = await service.deleteMealPlanItem('user-123', 'item-1');
+
+    expect(mockPrismaService.mealPlanItem.delete).toHaveBeenCalledWith({
+      where: { id: 'item-1' },
+    });
+    expect(mockPrismaService.mealPlan.update).toHaveBeenCalledWith({
+      where: { id: 'plan-123' },
+      data: { totalEstimatedCost: 20.0 },
+    });
+    expect(result.success).toBe(true);
+    expect(result.newTotalEstimatedCost).toBe(20.0);
   });
 });

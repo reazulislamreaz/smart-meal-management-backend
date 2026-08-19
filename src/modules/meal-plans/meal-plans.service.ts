@@ -8,6 +8,7 @@ import { PrismaService } from '@/database/prisma.service';
 import { OpenAiService, AiPlanMeal } from '../ai/openai.service';
 import { GenerateMealPlanDto } from './dto/generate-meal-plan.dto';
 import { CreateMealPlanDto } from './dto/create-meal-plan.dto';
+import { UpdateMealPlanItemDto } from './dto/update-meal-plan-item.dto';
 
 @Injectable()
 export class MealPlansService {
@@ -722,6 +723,109 @@ export class MealPlansService {
     }
 
     return 1.0;
+  }
+
+  /**
+   * Updates an individual planned meal item (day of week, meal slot, status, or recipe).
+   */
+  async updateMealPlanItem(
+    userId: string,
+    itemId: string,
+    dto: UpdateMealPlanItemDto,
+  ) {
+    const item = await this.prisma.mealPlanItem.findUnique({
+      where: { id: itemId },
+      include: { mealPlan: true, meal: true },
+    });
+
+    if (!item || item.mealPlan.userId !== userId) {
+      throw new NotFoundException('Meal plan item not found');
+    }
+
+    const data: any = {};
+    if (dto.dayOfWeek !== undefined) {
+      data.dayOfWeek = dto.dayOfWeek;
+    }
+    if (dto.mealType !== undefined) {
+      data.mealType = dto.mealType.toUpperCase();
+    }
+    if (dto.isCooked !== undefined) {
+      data.isCooked = dto.isCooked;
+    }
+    if (dto.mealId !== undefined && dto.mealId !== item.mealId) {
+      const meal = await this.prisma.meal.findUnique({
+        where: { id: dto.mealId },
+      });
+      if (!meal) {
+        throw new NotFoundException(`Meal with ID "${dto.mealId}" not found`);
+      }
+      data.mealId = dto.mealId;
+    }
+
+    const updatedItem = await this.prisma.mealPlanItem.update({
+      where: { id: itemId },
+      data,
+      include: { meal: true },
+    });
+
+    // If meal was replaced, recalculate plan total estimated cost
+    if (dto.mealId !== undefined && dto.mealId !== item.mealId) {
+      const allItems = await this.prisma.mealPlanItem.findMany({
+        where: { mealPlanId: item.mealPlanId },
+        include: { meal: true },
+      });
+      const newTotalCost = allItems.reduce(
+        (acc, it) => acc + (it.meal?.estimatedCost || 0),
+        0,
+      );
+      await this.prisma.mealPlan.update({
+        where: { id: item.mealPlanId },
+        data: { totalEstimatedCost: Math.round(newTotalCost * 100) / 100 },
+      });
+    }
+
+    return updatedItem;
+  }
+
+  /**
+   * Deletes a planned meal item and recalculates the total estimated cost of the meal plan.
+   */
+  async deleteMealPlanItem(userId: string, itemId: string) {
+    const item = await this.prisma.mealPlanItem.findUnique({
+      where: { id: itemId },
+      include: { mealPlan: true, meal: true },
+    });
+
+    if (!item || item.mealPlan.userId !== userId) {
+      throw new NotFoundException('Meal plan item not found');
+    }
+
+    await this.prisma.mealPlanItem.delete({
+      where: { id: itemId },
+    });
+
+    // Recalculate plan total estimated cost
+    const remainingItems = await this.prisma.mealPlanItem.findMany({
+      where: { mealPlanId: item.mealPlanId },
+      include: { meal: true },
+    });
+
+    const newTotalCost = remainingItems.reduce(
+      (acc, it) => acc + (it.meal?.estimatedCost || 0),
+      0,
+    );
+
+    await this.prisma.mealPlan.update({
+      where: { id: item.mealPlanId },
+      data: { totalEstimatedCost: Math.round(newTotalCost * 100) / 100 },
+    });
+
+    return {
+      success: true,
+      message: 'Meal plan item removed successfully',
+      remainingItemsCount: remainingItems.length,
+      newTotalEstimatedCost: Math.round(newTotalCost * 100) / 100,
+    };
   }
 }
 
