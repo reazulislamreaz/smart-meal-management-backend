@@ -17,6 +17,7 @@ import {
   ApiBearerAuth,
   ApiQuery,
   ApiBody,
+  ApiParam,
 } from '@nestjs/swagger';
 import { MealPlansService } from './meal-plans.service';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
@@ -123,8 +124,26 @@ export class MealPlansController {
   }
 
   @Patch('swap/:itemId')
-  @ApiOperation({ summary: 'Swap a planned meal item with another recipe' })
-  @ApiResponse({ status: 200, description: 'Meal swapped successfully' })
+  @ApiOperation({
+    summary: 'Swap a planned meal item with another recipe',
+    description: 'Swaps the recipe for a planned item. If newMealId is not provided, backend automatically selects an alternative recipe matching user dietary restrictions.',
+  })
+  @ApiParam({ name: 'itemId', description: 'ID of the meal plan item to swap', example: 'uuid-item-id' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        newMealId: {
+          type: 'string',
+          description: 'Optional ID of the target meal from catalog. If omitted, an alternative recipe is selected automatically.',
+          example: 'uuid-new-meal-id',
+        },
+      },
+    },
+    required: false,
+  })
+  @ApiResponse({ status: 200, description: 'Meal swapped successfully and total budget recalculated' })
+  @ApiResponse({ status: 404, description: 'Meal plan item not found' })
   async swapMeal(
     @CurrentUser('id') userId: string,
     @Param('itemId') itemId: string,
@@ -138,8 +157,14 @@ export class MealPlansController {
   }
 
   @Patch('items/:itemId')
-  @ApiOperation({ summary: 'Update a planned meal item (day of week, meal slot, status)' })
+  @ApiOperation({
+    summary: 'Update a planned meal item (day of week, meal slot, status)',
+    description: 'Allows shifting meal slot (BREAKFAST / LUNCH / DINNER), reassigning day of week (1 to 7), or updating cooked status.',
+  })
+  @ApiParam({ name: 'itemId', description: 'ID of the meal plan item to update', example: 'uuid-item-id' })
+  @ApiBody({ type: UpdateMealPlanItemDto })
   @ApiResponse({ status: 200, description: 'Meal plan item updated successfully' })
+  @ApiResponse({ status: 404, description: 'Meal plan item not found' })
   async updateMealItem(
     @CurrentUser('id') userId: string,
     @Param('itemId') itemId: string,
@@ -153,8 +178,13 @@ export class MealPlansController {
   }
 
   @Delete('items/:itemId')
-  @ApiOperation({ summary: 'Remove a planned meal item from the current meal plan' })
+  @ApiOperation({
+    summary: 'Remove a planned meal item from the current meal plan',
+    description: 'Deletes the specified meal item from the user meal plan and recalculates totalEstimatedCost for live budget comparisons.',
+  })
+  @ApiParam({ name: 'itemId', description: 'ID of the meal plan item to remove', example: 'uuid-item-id' })
   @ApiResponse({ status: 200, description: 'Meal plan item removed successfully' })
+  @ApiResponse({ status: 404, description: 'Meal plan item not found' })
   async deleteMealItem(
     @CurrentUser('id') userId: string,
     @Param('itemId') itemId: string,
