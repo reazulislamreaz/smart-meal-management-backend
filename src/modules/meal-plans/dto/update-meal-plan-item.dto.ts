@@ -4,8 +4,10 @@ import { Type } from 'class-transformer';
 
 export class UpdateMealPlanItemDto {
   @ApiPropertyOptional({
-    description: 'Day of week (1 to 7, or up to 14)',
-    example: 1,
+    description: 'Day of week (1 to 7: 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday, 7=Sunday)',
+    example: 3,
+    minimum: 1,
+    maximum: 14,
   })
   @IsOptional()
   @IsInt()
@@ -15,7 +17,8 @@ export class UpdateMealPlanItemDto {
   dayOfWeek?: number;
 
   @ApiPropertyOptional({
-    description: 'Meal slot type (e.g. BREAKFAST, LUNCH, DINNER, SNACK)',
+    description: 'Target meal slot (e.g. Move to BREAKFAST or Move to DINNER)',
+    enum: ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'],
     example: 'BREAKFAST',
   })
   @IsOptional()
@@ -23,7 +26,7 @@ export class UpdateMealPlanItemDto {
   mealType?: string;
 
   @ApiPropertyOptional({
-    description: 'ID of new meal from catalog if replacing recipe',
+    description: 'Optional ID of replacement recipe from catalog',
     example: 'uuid-meal-id',
   })
   @IsOptional()
@@ -31,7 +34,7 @@ export class UpdateMealPlanItemDto {
   mealId?: string;
 
   @ApiPropertyOptional({
-    description: 'Whether the meal has been cooked or prepared',
+    description: 'Whether this planned meal has already been prepared/cooked',
     example: true,
   })
   @IsOptional()

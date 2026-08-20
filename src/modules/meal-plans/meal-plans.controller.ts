@@ -7,7 +7,6 @@ import {
   Param,
   Body,
   Query,
-  UseGuards,
   ParseIntPipe,
 } from '@nestjs/common';
 import {
@@ -95,34 +94,6 @@ export class MealPlansController {
     };
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get specific meal plan by ID' })
-  @ApiResponse({ status: 200, description: 'Meal plan retrieved successfully' })
-  async getPlanById(
-    @CurrentUser('id') userId: string,
-    @Param('id') planId: string,
-  ) {
-    const plan = await this.mealPlansService.getPlanById(userId, planId);
-    return {
-      message: 'Meal plan retrieved successfully',
-      data: plan,
-    };
-  }
-
-  @Delete(':id')
-  @ApiOperation({ summary: 'Delete a meal plan by ID' })
-  @ApiResponse({ status: 200, description: 'Meal plan deleted successfully' })
-  async deletePlan(
-    @CurrentUser('id') userId: string,
-    @Param('id') planId: string,
-  ) {
-    const result = await this.mealPlansService.deletePlan(userId, planId);
-    return {
-      message: result.message,
-      data: result,
-    };
-  }
-
   @Patch('swap/:itemId')
   @ApiOperation({
     summary: 'Swap a planned meal item with another recipe',
@@ -190,6 +161,34 @@ export class MealPlansController {
     @Param('itemId') itemId: string,
   ) {
     const result = await this.mealPlansService.deleteMealPlanItem(userId, itemId);
+    return {
+      message: result.message,
+      data: result,
+    };
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get specific meal plan by ID' })
+  @ApiResponse({ status: 200, description: 'Meal plan retrieved successfully' })
+  async getPlanById(
+    @CurrentUser('id') userId: string,
+    @Param('id') planId: string,
+  ) {
+    const plan = await this.mealPlansService.getPlanById(userId, planId);
+    return {
+      message: 'Meal plan retrieved successfully',
+      data: plan,
+    };
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a meal plan by ID' })
+  @ApiResponse({ status: 200, description: 'Meal plan deleted successfully' })
+  async deletePlan(
+    @CurrentUser('id') userId: string,
+    @Param('id') planId: string,
+  ) {
+    const result = await this.mealPlansService.deletePlan(userId, planId);
     return {
       message: result.message,
       data: result,
