@@ -10,6 +10,10 @@ import { UpdateOnboardingDto } from './dto/onboarding.dto';
 import * as argon2 from 'argon2';
 import { User, Prisma } from '@prisma/client';
 import { PrismaService } from '@/database/prisma.service';
+import {
+  mealFrequencyFromUser,
+  mealFrequencyToLegacy,
+} from '../meal-plans/utils/meal-frequency.util';
 
 @Injectable()
 export class UsersService {
@@ -29,8 +33,7 @@ export class UsersService {
     const user = await this.usersRepository.create({
       email: dto.email,
       passwordHash,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
+      name: dto.name,
       role: dto.role,
     });
 
@@ -114,6 +117,26 @@ export class UsersService {
     if (dto.plannedDaysCount !== undefined) {
       updateData.plannedDaysCount = dto.plannedDaysCount;
     }
+    if (dto.mealFrequency !== undefined) {
+      const currentUser = await this.usersRepository.findById(userId);
+      const mergedFrequency = {
+        breakfast:
+          dto.mealFrequency.breakfast ??
+          currentUser?.mealFrequencyBreakfast ??
+          0,
+        lunch:
+          dto.mealFrequency.lunch ?? currentUser?.mealFrequencyLunch ?? 0,
+        dinner:
+          dto.mealFrequency.dinner ?? currentUser?.mealFrequencyDinner ?? 0,
+      };
+      const legacyConfig = mealFrequencyToLegacy(mergedFrequency);
+
+      updateData.mealFrequencyBreakfast = mergedFrequency.breakfast;
+      updateData.mealFrequencyLunch = mergedFrequency.lunch;
+      updateData.mealFrequencyDinner = mergedFrequency.dinner;
+      updateData.plannedMealTypes = legacyConfig.plannedMealTypes;
+      updateData.plannedDaysCount = legacyConfig.plannedDaysCount;
+    }
     if (dto.weeklyBudget !== undefined) {
       updateData.weeklyBudget = dto.weeklyBudget;
     }
@@ -170,8 +193,6 @@ export class UsersService {
       isOnboardingCompleted: user.isOnboardingCompleted,
       profile: {
         name: user.name,
-        firstName: user.firstName,
-        lastName: user.lastName,
         email: user.email,
         phone: user.phoneNumber,
         avatarUrl: user.avatarUrl,
@@ -179,6 +200,7 @@ export class UsersService {
       preferences: {
         adultsCount: user.adultsCount,
         childrenCount: user.childrenCount,
+        mealFrequency: mealFrequencyFromUser(user),
         plannedMealTypes: user.plannedMealTypes,
         plannedDaysCount: user.plannedDaysCount,
         weeklyBudget: user.weeklyBudget,
@@ -253,7 +275,10 @@ export class UsersService {
 
     // 1. Fetch active meal plan with items & meals
     const activePlan = await this.prisma.mealPlan.findFirst({
-      where: { userId, status: 'ACTIVE' },
+      where: {
+        userId,
+        status: { in: ['ACTIVE', 'Active', 'active'] },
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         items: {
@@ -299,7 +324,11 @@ export class UsersService {
       const planStart = new Date(activePlan.startDate);
       const diffTime = Math.abs(today.getTime() - planStart.getTime());
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      const currentDayOfWeek = Math.min(Math.max(diffDays, 1), user.plannedDaysCount || 7);
+      const maxDayInPlan = activePlan.items.reduce(
+        (max, item) => Math.max(max, item.dayOfWeek),
+        1,
+      );
+      const currentDayOfWeek = Math.min(Math.max(diffDays, 1), maxDayInPlan);
 
       todaysMeals = activePlan.items.filter((i) => i.dayOfWeek === currentDayOfWeek);
       if (todaysMeals.length === 0) {
@@ -320,7 +349,7 @@ export class UsersService {
     return {
       user: {
         id: user.id,
-        name: user.name || user.firstName || 'User',
+        name: user.name || 'User',
         email: user.email,
         avatarUrl: user.avatarUrl,
         currency,

@@ -14,15 +14,10 @@ export class CreateUserDto {
   @IsNotEmpty()
   password!: string;
 
-  @ApiProperty({ example: 'John', description: 'User first name' })
+  @ApiProperty({ example: 'John Doe', description: 'User name' })
   @IsString()
   @IsNotEmpty()
-  firstName!: string;
-
-  @ApiProperty({ example: 'Doe', description: 'User last name' })
-  @IsString()
-  @IsNotEmpty()
-  lastName!: string;
+  name!: string;
 
   @ApiPropertyOptional({ enum: Role, default: Role.USER, description: 'User role' })
   @IsEnum(Role)
