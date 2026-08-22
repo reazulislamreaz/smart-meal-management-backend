@@ -8,7 +8,10 @@ import {
   IsString,
   Max,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { OptionalMealFrequencyDto } from '../../meal-plans/dto/meal-frequency.dto';
 
 export class UpdateOnboardingDto {
   @ApiPropertyOptional({
@@ -48,8 +51,18 @@ export class UpdateOnboardingDto {
   childrenCount?: number;
 
   @ApiPropertyOptional({
+    example: { breakfast: 0, lunch: 3, dinner: 5 },
+    description: 'Step 3: Exact number of meals to generate per meal type',
+    type: OptionalMealFrequencyDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OptionalMealFrequencyDto)
+  mealFrequency?: OptionalMealFrequencyDto;
+
+  @ApiPropertyOptional({
     example: ['BREAKFAST', 'LUNCH', 'DINNER'],
-    description: 'Step 3: Meals to cover in the plan',
+    description: 'Step 3: Meals to cover in the plan (legacy; use mealFrequency when possible)',
   })
   @IsOptional()
   @IsArray()

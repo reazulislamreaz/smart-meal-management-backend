@@ -140,9 +140,10 @@ case "$CMD" in
       -H "Authorization: Bearer $TOKEN" \
       -H "Content-Type: application/json" \
       -d '{
-        "weeklyBudget": 150.0,
-        "plannedDaysCount": 7,
-        "includePantryItems": true
+        "weeklyBudget": 115,
+        "mealFrequency": { "breakfast": 0, "lunch": 3, "dinner": 5 },
+        "includePantryItems": true,
+        "saveToProfile": true
       }' | jq . 2>/dev/null || cat
     ;;
 
