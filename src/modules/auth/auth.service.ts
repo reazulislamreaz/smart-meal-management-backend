@@ -53,9 +53,6 @@ export class AuthService {
     const detectedLocation = await this.ipLocationService.resolveLocation(req);
 
     const passwordHash = await argon2.hash(dto.password);
-    const nameParts = dto.fullName.trim().split(' ');
-    const firstName = nameParts[0];
-    const lastName = nameParts.slice(1).join(' ') || '';
     const avatarUrl = dto.image || null;
     const phoneNumber = dto.phone || null;
 
@@ -63,8 +60,6 @@ export class AuthService {
       data: {
         email: dto.email,
         passwordHash,
-        firstName,
-        lastName,
         name: dto.fullName.trim(),
         avatarUrl,
         phoneNumber,
@@ -272,7 +267,7 @@ export class AuthService {
       },
     });
 
-    const displayName = user.name || user.firstName || 'User';
+    const displayName = user.name || 'User';
     await this.mailService.sendPasswordResetEmail(user.email, resetCode, displayName);
 
     return {

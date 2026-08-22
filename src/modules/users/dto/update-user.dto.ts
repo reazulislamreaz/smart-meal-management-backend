@@ -14,15 +14,10 @@ export class UpdateUserDto {
   @IsOptional()
   password?: string;
 
-  @ApiPropertyOptional({ example: 'Jane' })
+  @ApiPropertyOptional({ example: 'Jane Smith' })
   @IsString()
   @IsOptional()
-  firstName?: string;
-
-  @ApiPropertyOptional({ example: 'Smith' })
-  @IsString()
-  @IsOptional()
-  lastName?: string;
+  name?: string;
 
   @ApiPropertyOptional({ enum: Role })
   @IsEnum(Role)

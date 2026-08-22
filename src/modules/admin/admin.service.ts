@@ -142,7 +142,7 @@ export class AdminService {
 
       return {
         id: u.id,
-        name: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email.split('@')[0],
+        name: u.name || u.email.split('@')[0],
         email: u.email,
         plan: planType,
         avatar: sanitizeAvatarUrl(u.avatarUrl, u.name || u.email, i + 1),
@@ -253,8 +253,6 @@ export class AdminService {
       where.OR = [
         { email: { contains: search, mode: 'insensitive' } },
         { name: { contains: search, mode: 'insensitive' } },
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
         { city: { contains: search, mode: 'insensitive' } },
         { country: { contains: search, mode: 'insensitive' } },
         { address: { contains: search, mode: 'insensitive' } },
@@ -304,7 +302,7 @@ export class AdminService {
       const taskCompletionRate =
         totalTasks > 0 ? `${Math.round((completedTasks / totalTasks) * 100)}%` : 'N/A';
       const activeSubscription = u.subscriptions[0];
-      const displayName = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email.split('@')[0];
+      const displayName = u.name || u.email.split('@')[0];
       const address = u.address || u.city || u.country || 'Dhaka';
       const phone = u.phoneNumber || '(+44) 201234';
 
@@ -498,7 +496,7 @@ export class AdminService {
 
     const { passwordHash, ...sanitized } = user;
     const activeSubscription = user.subscriptions.find((s) => s.status === 'ACTIVE') || user.subscriptions[0];
-    const displayName = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email.split('@')[0];
+    const displayName = user.name || user.email.split('@')[0];
     const address = user.address || user.city || user.country || 'Dhaka';
     const phone = user.phoneNumber || '(+44) 201234';
     const joiningDate = user.createdAt.toISOString().split('T')[0];
@@ -534,8 +532,6 @@ export class AdminService {
             id: true,
             email: true,
             name: true,
-            firstName: true,
-            lastName: true,
             phoneNumber: true,
             address: true,
             avatarUrl: true,
@@ -614,17 +610,12 @@ export class AdminService {
     }
 
     const passwordHash = await argon2.hash(dto.password);
-    const nameParts = dto.fullName.trim().split(' ');
-    const firstName = nameParts[0];
-    const lastName = nameParts.slice(1).join(' ') || '';
 
     const user = await this.prisma.user.create({
       data: {
         email: dto.email.toLowerCase().trim(),
         passwordHash,
         name: dto.fullName.trim(),
-        firstName,
-        lastName,
         role: dto.role || Role.USER,
         phoneNumber: dto.phone || null,
         weeklyBudget: 150.0,
@@ -894,7 +885,7 @@ export class AdminService {
         orderBy: { createdAt: 'desc' },
         include: {
           user: {
-            select: { id: true, email: true, name: true, firstName: true, lastName: true, avatarUrl: true, createdAt: true },
+            select: { id: true, email: true, name: true, avatarUrl: true, createdAt: true },
           },
         },
       }),
@@ -946,8 +937,6 @@ export class AdminService {
               id: true,
               email: true,
               name: true,
-              firstName: true,
-              lastName: true,
               avatarUrl: true,
               createdAt: true,
             },
@@ -959,7 +948,7 @@ export class AdminService {
 
     const formatted = subscriptions.map((s, i) => {
       const u = s.user;
-      const displayName = u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email.split('@')[0];
+      const displayName = u.name || u.email.split('@')[0];
       const isAnnual = s.planName.toLowerCase().includes('annual');
       const subType = isAnnual ? 'Annual' : 'Monthly';
       const price = isAnnual ? '$59.88' : '$7.99';

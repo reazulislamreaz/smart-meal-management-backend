@@ -55,8 +55,8 @@ async function main() {
 
   // 1. Seed Super Admin users
   const adminEmails = [
-    { email: 'admin@sizzl.com', firstName: 'Bashar', lastName: 'Islam' },
-    { email: 'admin@smartmeal.com', firstName: 'Super', lastName: 'Admin' },
+    { email: 'admin@sizzl.com', name: 'Bashar Islam' },
+    { email: 'admin@smartmeal.com', name: 'Super Admin' },
   ];
 
   for (const adminData of adminEmails) {
@@ -68,9 +68,7 @@ async function main() {
         data: {
           email: adminData.email,
           passwordHash,
-          firstName: adminData.firstName,
-          lastName: adminData.lastName,
-          name: `${adminData.firstName} ${adminData.lastName}`,
+          name: adminData.name,
           role: Role.SUPER_ADMIN,
           isEmailVerified: true,
           phoneNumber: '(+44) 201234',
@@ -85,7 +83,7 @@ async function main() {
         data: {
           passwordHash,
           role: Role.SUPER_ADMIN,
-          name: `${adminData.firstName} ${adminData.lastName}`,
+          name: adminData.name,
         },
       });
       console.log(`Updated Super Admin credentials: ${adminData.email}`);
@@ -99,7 +97,6 @@ async function main() {
   for (let i = 0; i < RAW_USERS.length; i++) {
     const [no, fullName, emailRaw, phone, address, dateStr] = RAW_USERS[i];
     const email = emailRaw.trim().toLowerCase();
-    const nameParts = fullName.trim().split(' ');
     const isBlocked = blockedList.includes(no);
 
     const existing = await prisma.user.findUnique({
@@ -112,8 +109,6 @@ async function main() {
         data: {
           email,
           passwordHash: userPasswordHash,
-          firstName: nameParts[0],
-          lastName: nameParts.slice(1).join(' '),
           name: fullName,
           phoneNumber: phone,
           address,

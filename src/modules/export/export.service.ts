@@ -15,8 +15,7 @@ export class ExportService {
     worksheet.columns = [
       { header: 'User ID', key: 'id', width: 36 },
       { header: 'Email', key: 'email', width: 30 },
-      { header: 'First Name', key: 'firstName', width: 20 },
-      { header: 'Last Name', key: 'lastName', width: 20 },
+      { header: 'Name', key: 'name', width: 25 },
       { header: 'Role', key: 'role', width: 15 },
       { header: 'Created At', key: 'createdAt', width: 25 },
     ];
@@ -27,8 +26,7 @@ export class ExportService {
       worksheet.addRow({
         id: user.id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        name: user.name,
         role: user.role,
         createdAt: user.createdAt.toISOString(),
       });
@@ -74,7 +72,7 @@ export class ExportService {
           doc.addPage();
         }
         doc.fontSize(9).text(user.email, 30, doc.y, { width: 180, continued: true });
-        doc.text(`${user.firstName} ${user.lastName}`, 210, doc.y, { width: 150, continued: true });
+        doc.text(user.name || '', 210, doc.y, { width: 150, continued: true });
         doc.text(user.role, 360, doc.y, { width: 100, continued: true });
         doc.text(new Date(user.createdAt).toLocaleDateString(), 460, doc.y, { width: 100 });
         doc.moveDown(0.3);

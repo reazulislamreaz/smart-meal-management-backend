@@ -9,6 +9,31 @@ import { OpenAiService, AiPlanMeal } from '../ai/openai.service';
 import { GenerateMealPlanDto } from './dto/generate-meal-plan.dto';
 import { CreateMealPlanDto } from './dto/create-meal-plan.dto';
 import { UpdateMealPlanItemDto } from './dto/update-meal-plan-item.dto';
+import {
+  assertValidMealFrequency,
+  countMealsByType,
+  distributeMealSlots,
+  mealFrequencyToLegacy,
+  mealFrequencyTotal,
+  MealSlot,
+  resolveMealFrequency,
+  resolvePlanningDaysCount,
+} from './utils/meal-frequency.util';
+import {
+  buildBudgetComparison,
+  withMealPlanResponse,
+} from './utils/meal-plan-response.util';
+
+const MEAL_PLAN_WITH_ITEMS_INCLUDE = {
+  items: {
+    include: {
+      meal: true,
+    },
+    orderBy: [{ dayOfWeek: 'asc' as const }, { mealType: 'asc' as const }],
+  },
+};
+
+const ACTIVE_MEAL_PLAN_STATUSES = ['ACTIVE', 'Active', 'active'];
 
 @Injectable()
 export class MealPlansService {
@@ -74,15 +99,17 @@ export class MealPlansService {
       }
     }
 
-    const daysCount = dto?.daysCount || dto?.plannedDaysCount || user.plannedDaysCount || 7;
-    const mealTypes =
-      (dto?.mealTypes && dto.mealTypes.length > 0)
-        ? dto.mealTypes
-        : (dto?.plannedMealTypes && dto.plannedMealTypes.length > 0)
-        ? dto.plannedMealTypes
-        : user.plannedMealTypes.length > 0
-        ? user.plannedMealTypes
-        : ['BREAKFAST', 'LUNCH', 'DINNER'];
+    const mealFrequency = resolveMealFrequency(dto, user);
+    assertValidMealFrequency(mealFrequency);
+
+    const daysCount = resolvePlanningDaysCount(
+      dto?.daysCount ?? dto?.plannedDaysCount,
+      user.plannedDaysCount,
+      mealFrequency,
+    );
+    const legacyMealConfig = mealFrequencyToLegacy(mealFrequency);
+    const mealTypes = legacyMealConfig.plannedMealTypes;
+    const mealSlots = distributeMealSlots(mealFrequency, daysCount);
     const targetBudget = dto?.weeklyBudget !== undefined ? dto.weeklyBudget : user.weeklyBudget || 150.0;
     const adultsCount = dto?.adultsCount !== undefined ? dto.adultsCount : user.adultsCount || 1;
     const childrenCount = dto?.childrenCount !== undefined ? dto.childrenCount : user.childrenCount || 0;
@@ -107,6 +134,9 @@ export class MealPlansService {
           childrenCount,
           plannedDaysCount: daysCount,
           plannedMealTypes: mealTypes,
+          mealFrequencyBreakfast: mealFrequency.breakfast,
+          mealFrequencyLunch: mealFrequency.lunch,
+          mealFrequencyDinner: mealFrequency.dinner,
           dietaryRestrictions,
           cuisinePreferences,
           kitchenEquipment,
@@ -146,7 +176,6 @@ export class MealPlansService {
         const aiResult = await this.openAiService.generateMealPlan({
           user: {
             id: user.id,
-            firstName: user.firstName,
             weeklyBudget: targetBudget,
             adultsCount,
             childrenCount,
@@ -157,6 +186,7 @@ export class MealPlansService {
             mealVibes,
             plannedMealTypes: mealTypes,
             plannedDaysCount: daysCount,
+            mealFrequency,
             preferredStoreType,
             currency,
             country,
@@ -166,6 +196,8 @@ export class MealPlansService {
           overrides: {
             daysCount,
             mealTypes,
+            mealFrequency,
+            mealSlots,
             weeklyBudget: targetBudget,
             adultsCount,
             childrenCount,
@@ -189,13 +221,14 @@ export class MealPlansService {
         aiOverview = aiResult.planOverview;
         dailyTargetCalories = aiResult.dailyTargetCalories;
 
-        // Process generated meals: find or create in DB
-        for (const aiMeal of aiResult.meals) {
+        const alignedMeals = this.alignGeneratedMeals(aiResult.meals, mealSlots);
+
+        for (const aiMeal of alignedMeals) {
           const mealRecord = await this.findOrCreateAiMeal(aiMeal);
           planItemsData.push({
             mealId: mealRecord.id,
-            dayOfWeek: aiMeal.dayOfWeek || 1,
-            mealType: aiMeal.mealType || 'LUNCH',
+            dayOfWeek: aiMeal.dayOfWeek,
+            mealType: aiMeal.mealType,
           });
           totalCost += mealRecord.estimatedCost;
         }
@@ -212,72 +245,71 @@ export class MealPlansService {
     // Fallback: rule-based generation using database catalog
     if (generationType === 'CATALOG_FALLBACK' || planItemsData.length === 0) {
       const fallbackResult = await this.generateFallbackPlanItems(
-        daysCount,
-        mealTypes,
+        mealSlots,
         dto?.dietaryRestrictions || user.dietaryRestrictions,
+        dto?.cuisinePreferences || user.cuisinePreferences,
       );
       planItemsData.length = 0;
       planItemsData.push(...fallbackResult.items);
       totalCost = fallbackResult.totalCost;
     }
 
-    // Deactivate previous active plans
-    await this.prisma.mealPlan.updateMany({
-      where: { userId, status: 'ACTIVE' },
-      data: { status: 'ARCHIVED' },
-    });
+    this.assertPlanItemCounts(planItemsData, mealFrequency);
 
     const startDate = new Date();
     const endDate = new Date();
     endDate.setDate(startDate.getDate() + daysCount);
 
-    const newPlan = await this.prisma.mealPlan.create({
-      data: {
-        userId,
-        startDate,
-        endDate,
-        totalEstimatedCost: Math.round(totalCost * 100) / 100,
-        status: 'ACTIVE',
-        items: {
-          create: planItemsData,
-        },
-      },
-      include: {
-        items: {
-          include: {
-            meal: true,
+    const newPlan = await this.prisma.$transaction(async (tx) => {
+      await this.archiveActiveMealPlans(userId, tx);
+
+      return tx.mealPlan.create({
+        data: {
+          userId,
+          startDate,
+          endDate,
+          totalEstimatedCost: Math.round(totalCost * 100) / 100,
+          status: 'ACTIVE',
+          items: {
+            create: planItemsData,
           },
-          orderBy: [{ dayOfWeek: 'asc' }, { mealType: 'asc' }],
         },
-      },
+        include: MEAL_PLAN_WITH_ITEMS_INCLUDE,
+      });
     });
 
-    const budgetDelta = Math.round((totalCost - targetBudget) * 100) / 100;
-    const isOverBudget = budgetDelta > 0;
-
-    return {
-      plan: newPlan,
-      generationType,
-      planTitle: aiTitle || `${daysCount}-Day Weekly Meal Plan`,
-      planOverview: aiOverview,
-      dailyTargetCalories,
+    const budgetComparison = buildBudgetComparison(
+      targetBudget,
+      totalCost,
       currency,
-      weeklyBudget: targetBudget,
-      totalEstimatedCost: Math.round(totalCost * 100) / 100,
-      budgetDelta: Math.abs(budgetDelta),
-      isOverBudget,
-      pricingInsights: {
+    );
+
+    return withMealPlanResponse(
+      {
+        generationType,
+        planTitle: aiTitle || `${mealFrequencyTotal(mealFrequency)}-Meal Weekly Plan`,
+        planOverview: aiOverview,
+        dailyTargetCalories,
         currency,
-        preferredStoreType,
-        storeMultiplier,
-        historicalCalibrationFactor: pricingCalibration.factor,
-        historicalReceiptsSampleCount: pricingCalibration.sampleCount,
-        calibrationNote: pricingCalibration.message,
+        mealFrequency,
+        totalMeals: mealFrequencyTotal(mealFrequency),
+        budgetComparison,
+        weeklyBudget: targetBudget,
+        totalEstimatedCost: budgetComparison.totalEstimatedCost,
+        budgetDelta: budgetComparison.budgetDelta,
+        isOverBudget: budgetComparison.isOverBudget,
+        summaryMessage: budgetComparison.message,
+        pricingInsights: {
+          currency,
+          preferredStoreType,
+          storeMultiplier,
+          historicalCalibrationFactor: pricingCalibration.factor,
+          historicalReceiptsSampleCount: pricingCalibration.sampleCount,
+          calibrationNote: pricingCalibration.message,
+        },
       },
-      summaryMessage: isOverBudget
-        ? `Est. cost ${currency} ${totalCost.toFixed(2)} / ${currency} ${targetBudget.toFixed(2)} → ${currency} ${budgetDelta.toFixed(2)} over budget`
-        : `Est. cost ${currency} ${totalCost.toFixed(2)} / ${currency} ${targetBudget.toFixed(2)} → ${currency} ${Math.abs(budgetDelta).toFixed(2)} under budget`,
-    };
+      newPlan,
+    );
   }
 
   /**
@@ -312,12 +344,7 @@ export class MealPlansService {
       totalCost += mealCostMap.get(item.mealId) || 0.0;
     }
 
-    // Archive previous active plans
-    await this.prisma.mealPlan.updateMany({
-      where: { userId, status: 'ACTIVE' },
-      data: { status: 'ARCHIVED' },
-    });
-
+    // Archive previous active plans and create the new plan atomically
     const startDate = dto.startDate ? new Date(dto.startDate) : new Date();
     let endDate: Date;
     if (dto.endDate) {
@@ -327,44 +354,45 @@ export class MealPlansService {
       endDate.setDate(startDate.getDate() + 7);
     }
 
-    const newPlan = await this.prisma.mealPlan.create({
-      data: {
-        userId,
-        startDate,
-        endDate,
-        totalEstimatedCost: Math.round(totalCost * 100) / 100,
-        status: 'ACTIVE',
-        items: {
-          create: dto.items.map((i) => ({
-            mealId: i.mealId,
-            dayOfWeek: i.dayOfWeek,
-            mealType: i.mealType,
-          })),
-        },
-      },
-      include: {
-        items: {
-          include: {
-            meal: true,
+    const newPlan = await this.prisma.$transaction(async (tx) => {
+      await this.archiveActiveMealPlans(userId, tx);
+
+      return tx.mealPlan.create({
+        data: {
+          userId,
+          startDate,
+          endDate,
+          totalEstimatedCost: Math.round(totalCost * 100) / 100,
+          status: 'ACTIVE',
+          items: {
+            create: dto.items.map((i) => ({
+              mealId: i.mealId,
+              dayOfWeek: i.dayOfWeek,
+              mealType: i.mealType,
+            })),
           },
-          orderBy: [{ dayOfWeek: 'asc' }, { mealType: 'asc' }],
         },
-      },
+        include: MEAL_PLAN_WITH_ITEMS_INCLUDE,
+      });
     });
 
-    const budgetDelta = Math.round((totalCost - user.weeklyBudget) * 100) / 100;
-    const isOverBudget = budgetDelta > 0;
+    const budgetComparison = buildBudgetComparison(
+      user.weeklyBudget,
+      totalCost,
+      user.currency || 'USD',
+    );
 
-    return {
-      plan: newPlan,
-      weeklyBudget: user.weeklyBudget,
-      totalEstimatedCost: Math.round(totalCost * 100) / 100,
-      budgetDelta: Math.abs(budgetDelta),
-      isOverBudget,
-      summaryMessage: isOverBudget
-        ? `Est. cost $${totalCost.toFixed(2)} / $${user.weeklyBudget.toFixed(2)} → $${budgetDelta.toFixed(2)} over budget`
-        : `Est. cost $${totalCost.toFixed(2)} / $${user.weeklyBudget.toFixed(2)} → $${Math.abs(budgetDelta).toFixed(2)} under budget`,
-    };
+    return withMealPlanResponse(
+      {
+        budgetComparison,
+        weeklyBudget: user.weeklyBudget,
+        totalEstimatedCost: budgetComparison.totalEstimatedCost,
+        budgetDelta: budgetComparison.budgetDelta,
+        isOverBudget: budgetComparison.isOverBudget,
+        summaryMessage: budgetComparison.message,
+      },
+      newPlan,
+    );
   }
 
   /**
@@ -376,40 +404,44 @@ export class MealPlansService {
     });
 
     const currentPlan = await this.prisma.mealPlan.findFirst({
-      where: { userId, status: 'ACTIVE' },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        items: {
-          include: {
-            meal: true,
-          },
-          orderBy: [{ dayOfWeek: 'asc' }, { mealType: 'asc' }],
-        },
+      where: {
+        userId,
+        status: { in: ACTIVE_MEAL_PLAN_STATUSES },
       },
+      orderBy: { createdAt: 'desc' },
+      include: MEAL_PLAN_WITH_ITEMS_INCLUDE,
     });
 
     if (!currentPlan) {
       return {
         hasActivePlan: false,
+        mealPlan: null,
+        plan: null,
         message: 'No active meal plan found. Generate a new plan to get started.',
       };
     }
 
     const weeklyBudget = user?.weeklyBudget || 150.0;
-    const budgetDelta = Math.round((currentPlan.totalEstimatedCost - weeklyBudget) * 100) / 100;
-    const isOverBudget = budgetDelta > 0;
-
-    return {
-      hasActivePlan: true,
-      plan: currentPlan,
+    const currency = user?.currency || 'USD';
+    const budgetComparison = buildBudgetComparison(
       weeklyBudget,
-      totalEstimatedCost: currentPlan.totalEstimatedCost,
-      budgetDelta: Math.abs(budgetDelta),
-      isOverBudget,
-      summaryBanner: isOverBudget
-        ? `Est. cost $${currentPlan.totalEstimatedCost.toFixed(2)} / $${weeklyBudget.toFixed(2)} → $${budgetDelta.toFixed(2)} over budget`
-        : `Est. cost $${currentPlan.totalEstimatedCost.toFixed(2)} / $${weeklyBudget.toFixed(2)} → $${Math.abs(budgetDelta).toFixed(2)} under budget`,
-    };
+      currentPlan.totalEstimatedCost,
+      currency,
+    );
+
+    return withMealPlanResponse(
+      {
+        hasActivePlan: true,
+        budgetComparison,
+        weeklyBudget,
+        totalEstimatedCost: budgetComparison.totalEstimatedCost,
+        budgetDelta: budgetComparison.budgetDelta,
+        isOverBudget: budgetComparison.isOverBudget,
+        summaryBanner: budgetComparison.message,
+        summaryMessage: budgetComparison.message,
+      },
+      currentPlan,
+    );
   }
 
   /**
@@ -567,23 +599,124 @@ export class MealPlansService {
   }
 
   /**
+   * Archives all active meal plans for a user before creating a new one.
+   */
+  private async archiveActiveMealPlans(
+    userId: string,
+    tx: Pick<PrismaService, 'mealPlan'> = this.prisma,
+  ): Promise<number> {
+    const result = await tx.mealPlan.updateMany({
+      where: {
+        userId,
+        status: { in: ACTIVE_MEAL_PLAN_STATUSES },
+      },
+      data: { status: 'ARCHIVED' },
+    });
+
+    if (result.count > 0) {
+      this.logger.log(
+        `Archived ${result.count} active meal plan(s) for user ${userId}`,
+      );
+    }
+
+    return result.count;
+  }
+
+  /**
+   * Aligns AI meals to required slots, enforcing exact per-type counts.
+   */
+  private alignGeneratedMeals(aiMeals: AiPlanMeal[], mealSlots: MealSlot[]): AiPlanMeal[] {
+    if (mealSlots.length === 0) {
+      return aiMeals;
+    }
+
+    const mealsByType: Record<string, AiPlanMeal[]> = {
+      BREAKFAST: [],
+      LUNCH: [],
+      DINNER: [],
+    };
+    const unassigned: AiPlanMeal[] = [];
+
+    for (const meal of aiMeals) {
+      const normalized = (meal.mealType || '').trim().toUpperCase();
+      if (normalized in mealsByType) {
+        mealsByType[normalized].push(meal);
+      } else {
+        unassigned.push(meal);
+      }
+    }
+
+    const aligned: AiPlanMeal[] = [];
+
+    for (const slot of mealSlots) {
+      const pool = mealsByType[slot.mealType];
+      const meal = pool.shift() || unassigned.shift();
+
+      if (!meal) {
+        throw new Error(`Insufficient AI meals generated for ${slot.mealType}`);
+      }
+
+      aligned.push({
+        ...meal,
+        dayOfWeek: slot.dayOfWeek,
+        mealType: slot.mealType,
+      });
+    }
+
+    return aligned;
+  }
+
+  private assertPlanItemCounts(
+    planItems: Array<{ mealType: string }>,
+    mealFrequency: { breakfast: number; lunch: number; dinner: number },
+  ): void {
+    const counts = countMealsByType(planItems);
+
+    if (
+      counts.BREAKFAST !== mealFrequency.breakfast ||
+      counts.LUNCH !== mealFrequency.lunch ||
+      counts.DINNER !== mealFrequency.dinner
+    ) {
+      throw new BadRequestException(
+        `Generated meal plan does not match requested frequencies. Expected breakfast=${mealFrequency.breakfast}, lunch=${mealFrequency.lunch}, dinner=${mealFrequency.dinner}; got breakfast=${counts.BREAKFAST}, lunch=${counts.LUNCH}, dinner=${counts.DINNER}.`,
+      );
+    }
+  }
+
+  /**
    * Fallback heuristic meal plan item selector using database catalog.
    */
   private async generateFallbackPlanItems(
-    daysCount: number,
-    mealTypes: string[],
+    mealSlots: MealSlot[],
     dietaryRestrictions: string[] = [],
+    cuisinePreferences: string[] = [],
   ) {
     let candidateMeals = await this.prisma.meal.findMany({
-      where:
-        dietaryRestrictions.length > 0
-          ? {
-              dietaryTags: {
-                hasSome: dietaryRestrictions,
-              },
-            }
-          : undefined,
+      where: {
+        AND: [
+          dietaryRestrictions.length > 0
+            ? { dietaryTags: { hasSome: dietaryRestrictions } }
+            : {},
+          cuisinePreferences.length > 0
+            ? {
+                OR: cuisinePreferences.map((cuisine) => ({
+                  cuisine: { equals: cuisine, mode: 'insensitive' as const },
+                })),
+              }
+            : {},
+        ],
+      },
     });
+
+    if (candidateMeals.length === 0 && dietaryRestrictions.length > 0) {
+      candidateMeals = await this.prisma.meal.findMany({
+        where: {
+          dietaryTags: {
+            hasSome: dietaryRestrictions,
+          },
+        },
+      });
+    }
 
     if (candidateMeals.length === 0) {
       candidateMeals = await this.prisma.meal.findMany({ take: 20 });
@@ -617,20 +750,35 @@ export class MealPlansService {
       candidateMeals = [defaultMeal];
     }
 
+    const mealsByType = new Map<string, typeof candidateMeals>();
+    for (const slot of mealSlots) {
+      if (!mealsByType.has(slot.mealType)) {
+        const typeMatches = candidateMeals.filter(
+          (meal) => meal.mealType?.toUpperCase() === slot.mealType,
+        );
+        mealsByType.set(
+          slot.mealType,
+          typeMatches.length > 0 ? typeMatches : candidateMeals,
+        );
+      }
+    }
+
     const items: { mealId: string; dayOfWeek: number; mealType: string }[] = [];
     let totalCost = 0.0;
+    const usedByType = new Map<string, number>();
 
-    for (let day = 1; day <= daysCount; day++) {
-      for (const mealType of mealTypes) {
-        const mealIndex = (day + mealTypes.indexOf(mealType)) % candidateMeals.length;
-        const selected = candidateMeals[mealIndex];
-        totalCost += selected.estimatedCost;
-        items.push({
-          mealId: selected.id,
-          dayOfWeek: day,
-          mealType,
-        });
-      }
+    for (const slot of mealSlots) {
+      const pool = mealsByType.get(slot.mealType) || candidateMeals;
+      const usedIndex = usedByType.get(slot.mealType) || 0;
+      const selected = pool[usedIndex % pool.length];
+      usedByType.set(slot.mealType, usedIndex + 1);
+
+      totalCost += selected.estimatedCost;
+      items.push({
+        mealId: selected.id,
+        dayOfWeek: slot.dayOfWeek,
+        mealType: slot.mealType,
+      });
     }
 
     return { items, totalCost };
