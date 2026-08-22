@@ -11,6 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { MealFrequencyDto } from './meal-frequency.dto';
 
 export class GeneratePlanPantryItemDto {
   @ApiPropertyOptional({ example: 'Chicken Breast', description: 'Name of the ingredient' })
@@ -35,6 +36,17 @@ export class GeneratePlanPantryItemDto {
 }
 
 export class GenerateMealPlanDto {
+  @ApiPropertyOptional({
+    description:
+      'Exact number of meals to generate per meal type (preferred over plannedMealTypes × plannedDaysCount)',
+    example: { breakfast: 0, lunch: 3, dinner: 5 },
+    type: MealFrequencyDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MealFrequencyDto)
+  mealFrequency?: MealFrequencyDto;
+
   @ApiPropertyOptional({
     description: 'Target weekly grocery budget in USD (Onboarding Step 4)',
     example: 150.0,

@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "users"
+ADD COLUMN "mealFrequencyBreakfast" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "mealFrequencyLunch" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "mealFrequencyDinner" INTEGER NOT NULL DEFAULT 0;

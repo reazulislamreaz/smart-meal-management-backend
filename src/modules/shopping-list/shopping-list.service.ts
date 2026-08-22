@@ -8,7 +8,10 @@ export class ShoppingListService {
   async getShoppingList(userId: string) {
     // 1. Get active meal plan with items and meal ingredients
     const activePlan = await this.prisma.mealPlan.findFirst({
-      where: { userId, status: 'ACTIVE' },
+      where: {
+        userId,
+        status: { in: ['ACTIVE', 'Active', 'active'] },
+      },
       include: {
         items: {
           include: {
@@ -128,7 +131,10 @@ export class ShoppingListService {
 
     // 2. Update actual cost on active plan if provided
     const activePlan = await this.prisma.mealPlan.findFirst({
-      where: { userId, status: 'ACTIVE' },
+      where: {
+        userId,
+        status: { in: ['ACTIVE', 'Active', 'active'] },
+      },
     });
 
     if (activePlan && actualCost !== undefined) {
