@@ -11,13 +11,43 @@ export class ContentService {
     });
   }
 
+  async getContactInfo() {
+    const settings = await this.prisma.systemSetting.findMany({
+      where: {
+        key: { in: ['contact_email', 'contact_phone', 'contact_title', 'contact_address'] },
+      },
+    });
+    const map: Record<string, string> = {};
+    let latestUpdate: Date | undefined;
+    for (const setting of settings) {
+      map[setting.key] = setting.value;
+      if (!latestUpdate || setting.updatedAt > latestUpdate) {
+        latestUpdate = setting.updatedAt;
+      }
+    }
+
+    return {
+      slug: 'contact',
+      title: map['contact_title'] || 'Contact us',
+      email: map['contact_email'] || 'Support.info@gmail.com',
+      phone: map['contact_phone'] || '+8801996655',
+      address: map['contact_address'] || undefined,
+      updatedAt: latestUpdate ?? new Date(),
+    };
+  }
+
   async getStaticPage(slug: string) {
+    const normalizedSlug = slug.toLowerCase();
+    if (normalizedSlug === 'contact') {
+      return this.getContactInfo();
+    }
+
     const page = await this.prisma.staticPage.findUnique({
-      where: { slug: slug.toLowerCase() },
+      where: { slug: normalizedSlug },
     });
 
     if (!page) {
-      if (slug === 'privacy-policy') {
+      if (normalizedSlug === 'privacy-policy') {
         return {
           slug: 'privacy-policy',
           title: 'Privacy Policy',
@@ -26,12 +56,21 @@ export class ContentService {
           updatedAt: new Date(),
         };
       }
-      if (slug === 'about-us') {
+      if (normalizedSlug === 'about-us') {
         return {
           slug: 'about-us',
           title: 'About Sizzl / PlatePlan',
           content:
             'Sizzl is an AI-powered family meal planning and pantry inventory platform engineered to end food waste and financial friction.',
+          updatedAt: new Date(),
+        };
+      }
+      if (normalizedSlug === 'terms-and-conditions') {
+        return {
+          slug: 'terms-and-conditions',
+          title: 'Terms and Conditions',
+          content:
+            'By using Sizzl you agree to these terms, including acceptable use of meal plans, subscriptions, and household features. We may update these terms as the service evolves.',
           updatedAt: new Date(),
         };
       }

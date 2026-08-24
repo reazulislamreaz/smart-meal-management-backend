@@ -17,7 +17,10 @@ export function setupSwagger(app: INestApplication): void {
     .addTag('Tasks', 'Household Task Management')
     .addTag('Subscriptions', 'Stripe Billing, Plans & Coupon Validation')
     .addTag('Admin', 'Super Admin Dashboard, Analytics, Users & Coupon Management')
-    .addTag('Content', 'Static Content & Legal Pages (Privacy Policy, About Us)')
+    .addTag(
+      'Content',
+      'Static Content & Legal Pages (Privacy Policy, Terms and Conditions, About Us, Contact) and public contact form',
+    )
     .addTag('Upload', 'Cloudinary / S3 Media Uploads')
     .addTag('Exports', 'ExcelJS & PDFKit Document Generation')
     .addTag('Health', 'System Health Check Endpoint')
