@@ -1,8 +1,8 @@
 import { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-export function setupSwagger(app: INestApplication): void {
-  const config = new DocumentBuilder()
+export function setupSwagger(app: INestApplication, publicUrl?: string): void {
+  const builder = new DocumentBuilder()
     .setTitle('Smart Meal Management System API')
     .setDescription('Enterprise-grade NestJS REST API with PostgreSQL 17, Redis 7, JWT rotation, and RBAC.')
     .setVersion('1.0.0')
@@ -23,9 +23,15 @@ export function setupSwagger(app: INestApplication): void {
     )
     .addTag('Upload', 'Cloudinary / S3 Media Uploads')
     .addTag('Exports', 'ExcelJS & PDFKit Document Generation')
-    .addTag('Health', 'System Health Check Endpoint')
-    .build();
+    .addTag('Health', 'System Health Check Endpoint');
 
+  const normalizedPublicUrl = publicUrl?.replace(/\/$/, '');
+  if (normalizedPublicUrl) {
+    builder.addServer(normalizedPublicUrl, 'Production');
+  }
+  builder.addServer('http://localhost:3000', 'Local');
+
+  const config = builder.build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document, {
     swaggerOptions: {

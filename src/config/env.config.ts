@@ -7,6 +7,8 @@ export const envValidationSchema = Joi.object({
   PORT: Joi.number().default(3000),
   API_PREFIX: Joi.string().default('/api/v1'),
   APP_NAME: Joi.string().default('Smart Meal Management API'),
+  APP_URL: Joi.string().uri().allow('').optional(),
+  CORS_ORIGINS: Joi.string().allow('').optional(),
 
   DATABASE_URL: Joi.string().required(),
 
