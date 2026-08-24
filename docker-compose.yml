@@ -40,7 +40,8 @@ services:
     container_name: smart_meal_backend
     restart: always
     ports:
-      - "3000:3000"
+      # Host port (left) is 8888 on the VPS; the app still listens on 3000 inside the container.
+      - "${BACKEND_HOST_PORT:-8888}:3000"
     env_file:
       - .env
     environment:
