@@ -8,7 +8,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private pool: Pool;
 
   constructor() {
-    const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/smart_meal_db?schema=public';
+    const connectionString =
+      process.env.DATABASE_URL ||
+      'postgresql://postgres:postgres@localhost:5433/smart_meal_db?schema=public&sslmode=disable';
     const pool = new Pool({ connectionString });
     const adapter = new PrismaPg(pool);
     super({ adapter });

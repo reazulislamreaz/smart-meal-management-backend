@@ -5,6 +5,8 @@ dotenv.config();
 export default defineConfig({
   earlyAccess: true,
   datasource: {
-    url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/smart_meal_db?schema=public',
+    url:
+      process.env.DATABASE_URL ||
+      'postgresql://postgres:postgres@localhost:5433/smart_meal_db?schema=public&sslmode=disable',
   },
 });

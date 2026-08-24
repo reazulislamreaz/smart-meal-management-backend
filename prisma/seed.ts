@@ -44,7 +44,7 @@ const RAW_USERS = [
 async function main() {
   const connectionString =
     process.env.DATABASE_URL ||
-    'postgresql://postgres:postgres@localhost:5432/smart_meal_db?schema=public';
+    'postgresql://postgres:postgres@localhost:5433/smart_meal_db?schema=public&sslmode=disable';
   const pool = new Pool({ connectionString });
   const adapter = new PrismaPg(pool);
   const prisma = new PrismaClient({ adapter });

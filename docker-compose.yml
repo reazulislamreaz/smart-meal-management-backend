@@ -4,9 +4,9 @@ services:
     container_name: smart_meal_postgres
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: smart_meal_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-smart_meal_db}
     ports:
       # Host port (left) can change on the VPS; container still listens on 5432.
       - "${POSTGRES_HOST_PORT:-5433}:5432"
@@ -47,7 +47,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/smart_meal_db?schema=public&sslmode=disable"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-smart_meal_db}?schema=public&sslmode=disable"
       REDIS_HOST: redis
       REDIS_PORT: 6379
       APP_URL: ${APP_URL:-https://reaz3000.syedbipul.me}
