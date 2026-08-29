@@ -32,7 +32,10 @@ EXCLUDES=(
   --glob '!pnpm-lock.yaml'
   --glob '!package-lock.json'
   --glob '!yarn.lock'
+  # The scanner and the host audit describe these signatures in their own
+  # source, so they must be excluded or every run self-reports.
   --glob '!scripts/security-scan.sh'
+  --glob '!scripts/vps-security-audit.sh'
   --glob '!.github/workflows/security-scan.yml'
 )
 
