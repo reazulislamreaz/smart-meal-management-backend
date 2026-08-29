@@ -1,0 +1,27 @@
+name: Security Scan
+
+# Guards against the supply-chain injection this repository was hit by in
+# Aug 2026, where commits were rewritten on the remote to hide an obfuscated
+# Node loader. Running on push means a direct push to a protected branch is
+# still scanned, not just pull requests.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: Injection markers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Scan for injection markers
+        run: ./scripts/security-scan.sh
