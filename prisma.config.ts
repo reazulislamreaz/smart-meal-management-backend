@@ -5,12 +5,12 @@ dotenv.config();
 export default defineConfig({
   earlyAccess: true,
   datasource: {
-    url: (() => {
-      const url = process.env.DATABASE_URL?.trim();
-      if (!url) {
-        throw new Error('DATABASE_URL is not set. Prisma commands require an explicit database URL.');
-      }
-      return url;
-    })(),
+    // `prisma generate` runs at image build time without any database env, so a
+    // missing URL cannot abort here. The placeholder is intentionally
+    // unreachable: commands that really need a database (db push, migrate)
+    // fail loudly instead of silently hitting a default localhost server.
+    url:
+      process.env.DATABASE_URL?.trim() ||
+      'postgresql://unset:unset@database-url-not-set.invalid:5432/unset?schema=public',
   },
 });
