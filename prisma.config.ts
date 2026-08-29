@@ -5,8 +5,12 @@ dotenv.config();
 export default defineConfig({
   earlyAccess: true,
   datasource: {
-    url:
-      process.env.DATABASE_URL ||
-      'postgresql://postgres:postgres@localhost:5433/smart_meal_db?schema=public&sslmode=disable',
+    url: (() => {
+      const url = process.env.DATABASE_URL?.trim();
+      if (!url) {
+        throw new Error('DATABASE_URL is not set. Prisma commands require an explicit database URL.');
+      }
+      return url;
+    })(),
   },
 });

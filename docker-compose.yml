@@ -12,6 +12,7 @@ services:
       - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - postgres_socket:/var/run/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -47,16 +48,56 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      # POSTGRES_PASSWORD must be URL-safe (no @ : / ? # % characters), since it
+      # is interpolated directly into this connection URL.
       DATABASE_URL: "postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-smart_meal_db}?schema=public&sslmode=disable"
       REDIS_HOST: redis
       REDIS_PORT: 6379
       APP_URL: ${APP_URL:-https://reaz3000.syedbipul.me}
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-credentials-sync:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:3000/api/v1/health >/dev/null 2>&1 || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Keeps the postgres role password aligned with POSTGRES_PASSWORD on every
+  # deploy. POSTGRES_PASSWORD alone only applies when the data volume is first
+  # initialised, so without this the app and database drift apart and every
+  # query fails with "authentication failed".
+  db-credentials-sync:
+    image: postgres:17-alpine
+    container_name: smart_meal_db_credentials_sync
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        # Uses the shared unix socket, where pg_hba grants local trust, so this
+        # works even when the stored password no longer matches the .env value.
+        psql -h /var/run/postgresql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+          -c "ALTER USER \"$${POSTGRES_USER:-postgres}\" WITH PASSWORD '$${POSTGRES_PASSWORD:-postgres}';" \
+          && echo "Database credentials synced."
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_socket:/var/run/postgresql
 
 volumes:
   postgres_data:
+  postgres_socket:
   redis_data:
