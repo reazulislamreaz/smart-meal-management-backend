@@ -1,6 +1,24 @@
-import { Controller, Get, Param, Query, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Query,
+  Body,
+  ParseIntPipe,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiBearerAuth,
+  ApiBody,
+} from '@nestjs/swagger';
 import { MealsService } from './meals.service';
+import { RecommendMealsDto } from './dto/recommend-meals.dto';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { Public } from '@/common/decorators/public.decorator';
 
 @ApiTags('Meals')
 @ApiBearerAuth()
@@ -8,15 +26,71 @@ import { MealsService } from './meals.service';
 export class MealsController {
   constructor(private readonly mealsService: MealsService) {}
 
+  @Get('recommendations')
+  @ApiOperation({
+    summary: 'Get AI-driven, dynamically personalized food recommendations',
+    description:
+      'Generates diverse, non-repetitive meal recommendations tailored to user dietary restrictions, cuisine preferences, household size, target budget, and pantry stock.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Personalized food recommendations retrieved successfully',
+  })
+  async getRecommendationsGet(
+    @CurrentUser('id') userId?: string,
+    @Query() dto?: RecommendMealsDto,
+  ) {
+    const result = await this.mealsService.getRecommendations(userId || null, dto);
+    return {
+      message: 'Personalized recommendations generated successfully',
+      data: result.data,
+      source: result.source,
+      count: result.count,
+    };
+  }
+
+  @Post('recommendations')
+  @ApiOperation({
+    summary: 'Generate custom AI food recommendations with full preference payload',
+    description:
+      'Accepts an extensive personalization matrix (vibes, equipment, pantry overrides, exclusion list, custom prompt) and returns creative, non-repetitive meal suggestions.',
+  })
+  @ApiBody({ type: RecommendMealsDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Personalized food recommendations generated successfully',
+  })
+  async getRecommendationsPost(
+    @CurrentUser('id') userId?: string,
+    @Body() dto?: RecommendMealsDto,
+  ) {
+    const result = await this.mealsService.getRecommendations(userId || null, dto);
+    return {
+      message: 'Personalized recommendations generated successfully',
+      data: result.data,
+      source: result.source,
+      count: result.count,
+    };
+  }
+
   @Get()
   @ApiOperation({ summary: 'Search and filter master recipe catalog' })
   @ApiQuery({ name: 'cuisine', required: false, type: String })
   @ApiQuery({ name: 'dietaryTag', required: false, type: String })
-  @ApiQuery({ name: 'dietaryTags', required: false, type: String, description: 'Comma-separated tags e.g. VEGETARIAN,HIGH_PROTEIN' })
+  @ApiQuery({
+    name: 'dietaryTags',
+    required: false,
+    type: String,
+    description: 'Comma-separated tags e.g. VEGETARIAN,HIGH_PROTEIN',
+  })
   @ApiQuery({ name: 'search', required: false, type: String })
   @ApiQuery({ name: 'maxPrepTime', required: false, type: Number })
   @ApiQuery({ name: 'maxCost', required: false, type: Number })
-  @ApiQuery({ name: 'sortBy', required: false, enum: ['title', 'estimatedCost', 'prepTimeMinutes', 'cookedCount', 'createdAt'] })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    enum: ['title', 'estimatedCost', 'prepTimeMinutes', 'cookedCount', 'createdAt'],
+  })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })

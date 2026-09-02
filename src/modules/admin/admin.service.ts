@@ -4,42 +4,40 @@ import {
   BadRequestException,
   ConflictException,
   UnauthorizedException,
-} from '@nestjs/common';
-import { PrismaService } from '@/database/prisma.service';
-import { Role } from '@prisma/client';
-import * as argon2 from 'argon2';
+} from "@nestjs/common";
+import { PrismaService } from "@/database/prisma.service";
+import { Role } from "@prisma/client";
+import * as argon2 from "argon2";
 import {
   CreateSubscriptionPlanDto,
   UpdateSubscriptionPlanDto,
-} from './dto/subscription-plan.dto';
-import {
-  AssignSubscriptionDto,
-} from './dto/subscriber-management.dto';
-import {
-  CreateCouponDto,
-  UpdateCouponDto,
-} from './dto/coupon.dto';
-import {
-  CreateAdminMealDto,
-  UpdateAdminMealDto,
-} from './dto/admin-meal.dto';
-import {
-  AdminCreateUserDto,
-  AdminUpdateUserDto,
-} from './dto/admin-user.dto';
+} from "./dto/subscription-plan.dto";
+import { AssignSubscriptionDto } from "./dto/subscriber-management.dto";
+import { CreateCouponDto, UpdateCouponDto } from "./dto/coupon.dto";
+import { CreateAdminMealDto, UpdateAdminMealDto } from "./dto/admin-meal.dto";
+import { AdminCreateUserDto, AdminUpdateUserDto } from "./dto/admin-user.dto";
 import {
   UpsertSettingDto,
   UpdateAdminProfileDto,
   ChangeAdminPasswordDto,
   UpdateAppConfigDto,
   UpdateContactSettingsDto,
-} from './dto/system-settings.dto';
+} from "./dto/system-settings.dto";
 
 const DEFAULT_AVATAR =
-  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
+  "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80";
 
-export function sanitizeAvatarUrl(url?: string | null, _name = 'User', _index = 0): string {
-  if (!url || url.includes('s3.eu-north-1.amazonaws.com') || url.includes('sample.jpg') || url.trim() === '') {
+export function sanitizeAvatarUrl(
+  url?: string | null,
+  _name = "User",
+  _index = 0,
+): string {
+  if (
+    !url ||
+    url.includes("s3.eu-north-1.amazonaws.com") ||
+    url.includes("sample.jpg") ||
+    url.trim() === ""
+  ) {
     return DEFAULT_AVATAR;
   }
   return url;
@@ -55,7 +53,7 @@ export class AdminService {
     entityId?: string | null,
     details?: any,
     userId?: string | null,
-    ipAddress = '127.0.0.1',
+    ipAddress = "127.0.0.1",
   ) {
     try {
       return await this.prisma.auditLog.create({
@@ -65,11 +63,11 @@ export class AdminService {
           entityId: entityId || null,
           details: details ? details : undefined,
           userId: userId || null,
-          ipAddress: ipAddress || '127.0.0.1',
+          ipAddress: ipAddress || "127.0.0.1",
         },
       });
     } catch (err: any) {
-      console.warn('Failed to record audit log:', err.message);
+      console.warn("Failed to record audit log:", err.message);
       return null;
     }
   }
@@ -78,16 +76,22 @@ export class AdminService {
   // 1. Dashboard Overview Metrics & Activity Feed
   // ==========================================
   async getAnalytics() {
-    const [totalUsers, activeSubscriptions, totalMeals, totalCoupons, totalPlans] =
-      await Promise.all([
-        this.prisma.user.count(),
-        this.prisma.subscription.count({ where: { status: 'ACTIVE' } }),
-        this.prisma.meal.count(),
-        this.prisma.coupon.count(),
-        this.prisma.subscriptionPlan.count(),
-      ]);
+    const [
+      totalUsers,
+      activeSubscriptions,
+      totalMeals,
+      totalCoupons,
+      totalPlans,
+    ] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.subscription.count({ where: { status: "ACTIVE" } }),
+      this.prisma.meal.count(),
+      this.prisma.coupon.count(),
+      this.prisma.subscriptionPlan.count(),
+    ]);
 
-    const grossRevenue = activeSubscriptions > 0 ? activeSubscriptions * 59.88 : 10500;
+    const grossRevenue =
+      activeSubscriptions > 0 ? activeSubscriptions * 59.88 : 10500;
     const netMRR = activeSubscriptions > 0 ? activeSubscriptions * 7.99 : 1300;
     const churnRate = 1.2;
 
@@ -104,45 +108,56 @@ export class AdminService {
   }
 
   async getDashboardStats() {
-    const [totalUsersCount, activeSubsCount, totalMealsCount, recentUsersList, topMealsList] =
-      await Promise.all([
-        this.prisma.user.count(),
-        this.prisma.subscription.count({ where: { status: 'ACTIVE' } }),
-        this.prisma.meal.count(),
-        this.prisma.user.findMany({
-          take: 5,
-          orderBy: { createdAt: 'desc' },
-          include: {
-            subscriptions: {
-              where: { status: 'ACTIVE' },
-              take: 1,
-              orderBy: { createdAt: 'desc' },
-            },
+    const [
+      totalUsersCount,
+      activeSubsCount,
+      totalMealsCount,
+      recentUsersList,
+      topMealsList,
+    ] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.subscription.count({ where: { status: "ACTIVE" } }),
+      this.prisma.meal.count(),
+      this.prisma.user.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: {
+          subscriptions: {
+            where: { status: "ACTIVE" },
+            take: 1,
+            orderBy: { createdAt: "desc" },
           },
-        }),
-        this.prisma.meal.findMany({
-          take: 5,
-          orderBy: [{ cookedCount: 'desc' }, { createdAt: 'desc' }],
-        }),
-      ]);
+        },
+      }),
+      this.prisma.meal.findMany({
+        take: 5,
+        orderBy: [{ cookedCount: "desc" }, { createdAt: "desc" }],
+      }),
+    ]);
 
     const totalUsers = totalUsersCount.toLocaleString();
-    const activeTotal = activeSubsCount >= 1000 ? `${(activeSubsCount / 1000).toFixed(1)}k` : `${activeSubsCount}`;
+    const activeTotal =
+      activeSubsCount >= 1000
+        ? `${(activeSubsCount / 1000).toFixed(1)}k`
+        : `${activeSubsCount}`;
     const grossVal = Math.round(activeSubsCount * 29.99);
     const meed = `$${grossVal.toLocaleString()}`;
-    const mealPayment = totalMealsCount >= 1000 ? `${(totalMealsCount / 1000).toFixed(1)}k` : `${totalMealsCount}`;
+    const mealPayment =
+      totalMealsCount >= 1000
+        ? `${(totalMealsCount / 1000).toFixed(1)}k`
+        : `${totalMealsCount}`;
 
     const recentUsers = recentUsersList.map((u, i) => {
-      const planName = u.subscriptions[0]?.planName || 'Monthly';
-      const planType = planName.toLowerCase().includes('annual')
-        ? 'Annual'
-        : planName.toLowerCase().includes('trial')
-          ? 'Trial'
-          : 'Monthly';
+      const planName = u.subscriptions[0]?.planName || "Monthly";
+      const planType = planName.toLowerCase().includes("annual")
+        ? "Annual"
+        : planName.toLowerCase().includes("trial")
+          ? "Trial"
+          : "Monthly";
 
       return {
         id: u.id,
-        name: u.name || u.email.split('@')[0],
+        name: u.name || u.email.split("@")[0],
         email: u.email,
         plan: planType,
         avatar: sanitizeAvatarUrl(u.avatarUrl, u.name || u.email, i + 1),
@@ -165,14 +180,22 @@ export class AdminService {
 
     return {
       miniStats: {
-        totalUsers: { value: totalUsers, label: 'Total Users', growth: '+20%' },
-        activeTotal: { value: activeTotal, label: 'Active Total', growth: '+15%' },
-        meed: { value: meed, label: 'MEED', growth: '+25%' },
-        mealPayment: { value: mealPayment, label: 'Meal/Payment', growth: '+10%' },
+        totalUsers: { value: totalUsers, label: "Total Users", growth: "+20%" },
+        activeTotal: {
+          value: activeTotal,
+          label: "Active Total",
+          growth: "+15%",
+        },
+        meed: { value: meed, label: "MEED", growth: "+25%" },
+        mealPayment: {
+          value: mealPayment,
+          label: "Meal/Payment",
+          growth: "+10%",
+        },
       },
       incomeRing: {
         percentage: 68.5,
-        yearlyEarnings: `$${yearlyGross >= 1000 ? (yearlyGross / 1000).toFixed(1) + 'K' : yearlyGross}`,
+        yearlyEarnings: `$${yearlyGross >= 1000 ? (yearlyGross / 1000).toFixed(1) + "K" : yearlyGross}`,
         description: `You earned $${yearlyGross.toLocaleString()} yearly across ${activeSubsCount} active subscriber households. Keep up the good work!`,
         today: `$${todayGross}`,
         weekly: `$${weeklyGross}`,
@@ -187,17 +210,17 @@ export class AdminService {
     const [recentUsers, recentSubs, recentLogs] = await Promise.all([
       this.prisma.user.findMany({
         take: 5,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         select: { id: true, email: true, name: true, createdAt: true },
       }),
       this.prisma.subscription.findMany({
         take: 5,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: { user: { select: { email: true, name: true } } },
       }),
       this.prisma.cookbookLog.findMany({
         take: 5,
-        orderBy: { cookedAt: 'desc' },
+        orderBy: { cookedAt: "desc" },
         include: {
           user: { select: { email: true, name: true } },
           meal: { select: { title: true } },
@@ -207,17 +230,17 @@ export class AdminService {
 
     const activities = [
       ...recentUsers.map((u) => ({
-        type: 'USER_REGISTERED',
+        type: "USER_REGISTERED",
         description: `New user signed up: ${u.email}`,
         timestamp: u.createdAt,
       })),
       ...recentSubs.map((s) => ({
-        type: 'SUBSCRIPTION_CHECKOUT',
+        type: "SUBSCRIPTION_CHECKOUT",
         description: `${s.user.email} subscribed to ${s.planName}`,
         timestamp: s.createdAt,
       })),
       ...recentLogs.map((l) => ({
-        type: 'MEAL_COOKED',
+        type: "MEAL_COOKED",
         description: `${l.user.email} cooked "${l.meal.title}"`,
         timestamp: l.cookedAt,
       })),
@@ -251,11 +274,11 @@ export class AdminService {
     }
     if (search) {
       where.OR = [
-        { email: { contains: search, mode: 'insensitive' } },
-        { name: { contains: search, mode: 'insensitive' } },
-        { city: { contains: search, mode: 'insensitive' } },
-        { country: { contains: search, mode: 'insensitive' } },
-        { address: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: "insensitive" } },
+        { name: { contains: search, mode: "insensitive" } },
+        { city: { contains: search, mode: "insensitive" } },
+        { country: { contains: search, mode: "insensitive" } },
+        { address: { contains: search, mode: "insensitive" } },
       ];
     }
     if (dateFrom || dateTo) {
@@ -277,14 +300,14 @@ export class AdminService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           tasks: { select: { status: true } },
           subscriptions: {
-            where: { status: 'ACTIVE' },
+            where: { status: "ACTIVE" },
             select: { planName: true, status: true, currentPeriodEnd: true },
             take: 1,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
           },
           mealPlans: {
             take: 5,
@@ -298,28 +321,36 @@ export class AdminService {
     const formattedUsers = users.map((u, i) => {
       const { passwordHash, ...sanitized } = u;
       const totalTasks = u.tasks.length;
-      const completedTasks = u.tasks.filter((t) => t.status === 'COMPLETED').length;
+      const completedTasks = u.tasks.filter(
+        (t) => t.status === "COMPLETED",
+      ).length;
       const taskCompletionRate =
-        totalTasks > 0 ? `${Math.round((completedTasks / totalTasks) * 100)}%` : 'N/A';
+        totalTasks > 0
+          ? `${Math.round((completedTasks / totalTasks) * 100)}%`
+          : "N/A";
       const activeSubscription = u.subscriptions[0];
-      const displayName = u.name || u.email.split('@')[0];
-      const address = u.address || u.city || u.country || 'Dhaka';
-      const phone = u.phoneNumber || '(+44) 201234';
+      const displayName = u.name || u.email.split("@")[0];
+      const address = u.address || u.city || u.country || "Dhaka";
+      const phone = u.phoneNumber || "(+44) 201234";
 
-      const joinDate = u.createdAt.toISOString().split('T')[0];
+      const joinDate = u.createdAt.toISOString().split("T")[0];
       const hours = u.createdAt.getHours();
-      const minutes = String(u.createdAt.getMinutes()).padStart(2, '0');
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      const formattedTime = `${String(hours % 12 || 12).padStart(2, '0')}:${minutes} ${ampm}`;
+      const minutes = String(u.createdAt.getMinutes()).padStart(2, "0");
+      const ampm = hours >= 12 ? "PM" : "AM";
+      const formattedTime = `${String(hours % 12 || 12).padStart(2, "0")}:${minutes} ${ampm}`;
 
-      const totalSpendVal = u.mealPlans.reduce((sum, mp) => sum + (mp.totalEstimatedCost || 0), 0);
-      const totalSpend = totalSpendVal > 0 ? `$${totalSpendVal.toFixed(2)}` : '$5.00';
+      const totalSpendVal = u.mealPlans.reduce(
+        (sum, mp) => sum + (mp.totalEstimatedCost || 0),
+        0,
+      );
+      const totalSpend =
+        totalSpendVal > 0 ? `$${totalSpendVal.toFixed(2)}` : "$5.00";
 
-      const planName = activeSubscription?.planName || 'Annual';
+      const planName = activeSubscription?.planName || "Annual";
 
       return {
         ...sanitized,
-        no: String((page - 1) * limit + i + 1).padStart(2, '0'),
+        no: String((page - 1) * limit + i + 1).padStart(2, "0"),
         name: displayName,
         phone,
         address,
@@ -352,7 +383,7 @@ export class AdminService {
         isBlocked: true,
         role: true,
         subscriptions: {
-          where: { status: 'ACTIVE' },
+          where: { status: "ACTIVE" },
           select: { planName: true },
         },
       },
@@ -361,7 +392,9 @@ export class AdminService {
     const totalUsers = allUsers.length;
     const activeUsers = allUsers.filter((u) => !u.isBlocked).length;
     const blockedUsers = allUsers.filter((u) => u.isBlocked).length;
-    const subscribedUsers = allUsers.filter((u) => u.subscriptions.length > 0).length;
+    const subscribedUsers = allUsers.filter(
+      (u) => u.subscriptions.length > 0,
+    ).length;
 
     // Monthly bucket (0 to 11 for Jan to Dec)
     const monthlyCounts = new Array(12).fill(0);
@@ -403,7 +436,20 @@ export class AdminService {
       }
     });
 
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
 
     return {
       chartData: {
@@ -422,9 +468,14 @@ export class AdminService {
         activeUsers,
         blockedUsers,
         subscribedUsers,
-        activeRatio: totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 100,
-        blockedRatio: totalUsers > 0 ? Math.round((blockedUsers / totalUsers) * 100) : 0,
-        subscribedRatio: totalUsers > 0 ? Math.round((subscribedUsers / totalUsers) * 100) : 85,
+        activeRatio:
+          totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 100,
+        blockedRatio:
+          totalUsers > 0 ? Math.round((blockedUsers / totalUsers) * 100) : 0,
+        subscribedRatio:
+          totalUsers > 0
+            ? Math.round((subscribedUsers / totalUsers) * 100)
+            : 85,
       },
     };
   }
@@ -433,33 +484,33 @@ export class AdminService {
     let user = await this.prisma.user.findUnique({
       where: { id },
       include: {
-        subscriptions: { orderBy: { createdAt: 'desc' } },
-        pantryItems: { take: 10, orderBy: { createdAt: 'desc' } },
-        tasks: { take: 10, orderBy: { createdAt: 'desc' } },
-        mealPlans: { take: 10, orderBy: { createdAt: 'desc' } },
+        subscriptions: { orderBy: { createdAt: "desc" } },
+        pantryItems: { take: 10, orderBy: { createdAt: "desc" } },
+        tasks: { take: 10, orderBy: { createdAt: "desc" } },
+        mealPlans: { take: 10, orderBy: { createdAt: "desc" } },
         cookbookLogs: {
           take: 5,
-          orderBy: { cookedAt: 'desc' },
+          orderBy: { cookedAt: "desc" },
           include: { meal: { select: { title: true } } },
         },
-        auditLogs: { take: 5, orderBy: { createdAt: 'desc' } },
+        auditLogs: { take: 5, orderBy: { createdAt: "desc" } },
       },
     });
 
-    if (!user && id.includes('@')) {
+    if (!user && id.includes("@")) {
       user = await this.prisma.user.findUnique({
         where: { email: id },
         include: {
-          subscriptions: { orderBy: { createdAt: 'desc' } },
-          pantryItems: { take: 10, orderBy: { createdAt: 'desc' } },
-          tasks: { take: 10, orderBy: { createdAt: 'desc' } },
-          mealPlans: { take: 10, orderBy: { createdAt: 'desc' } },
+          subscriptions: { orderBy: { createdAt: "desc" } },
+          pantryItems: { take: 10, orderBy: { createdAt: "desc" } },
+          tasks: { take: 10, orderBy: { createdAt: "desc" } },
+          mealPlans: { take: 10, orderBy: { createdAt: "desc" } },
           cookbookLogs: {
             take: 5,
-            orderBy: { cookedAt: 'desc' },
+            orderBy: { cookedAt: "desc" },
             include: { meal: { select: { title: true } } },
           },
-          auditLogs: { take: 5, orderBy: { createdAt: 'desc' } },
+          auditLogs: { take: 5, orderBy: { createdAt: "desc" } },
         },
       });
     }
@@ -470,18 +521,18 @@ export class AdminService {
         const matchingUsers = await this.prisma.user.findMany({
           skip: Math.max(0, numericIndex - 1),
           take: 1,
-          orderBy: { createdAt: 'asc' },
+          orderBy: { createdAt: "asc" },
           include: {
-            subscriptions: { orderBy: { createdAt: 'desc' } },
-            pantryItems: { take: 10, orderBy: { createdAt: 'desc' } },
-            tasks: { take: 10, orderBy: { createdAt: 'desc' } },
-            mealPlans: { take: 10, orderBy: { createdAt: 'desc' } },
+            subscriptions: { orderBy: { createdAt: "desc" } },
+            pantryItems: { take: 10, orderBy: { createdAt: "desc" } },
+            tasks: { take: 10, orderBy: { createdAt: "desc" } },
+            mealPlans: { take: 10, orderBy: { createdAt: "desc" } },
             cookbookLogs: {
               take: 5,
-              orderBy: { cookedAt: 'desc' },
+              orderBy: { cookedAt: "desc" },
               include: { meal: { select: { title: true } } },
             },
-            auditLogs: { take: 5, orderBy: { createdAt: 'desc' } },
+            auditLogs: { take: 5, orderBy: { createdAt: "desc" } },
           },
         });
         if (matchingUsers.length > 0) {
@@ -495,14 +546,20 @@ export class AdminService {
     }
 
     const { passwordHash, ...sanitized } = user;
-    const activeSubscription = user.subscriptions.find((s) => s.status === 'ACTIVE') || user.subscriptions[0];
-    const displayName = user.name || user.email.split('@')[0];
-    const address = user.address || user.city || user.country || 'Dhaka';
-    const phone = user.phoneNumber || '(+44) 201234';
-    const joiningDate = user.createdAt.toISOString().split('T')[0];
+    const activeSubscription =
+      user.subscriptions.find((s) => s.status === "ACTIVE") ||
+      user.subscriptions[0];
+    const displayName = user.name || user.email.split("@")[0];
+    const address = user.address || user.city || user.country || "Dhaka";
+    const phone = user.phoneNumber || "(+44) 201234";
+    const joiningDate = user.createdAt.toISOString().split("T")[0];
 
-    const totalSpendVal = user.mealPlans.reduce((sum, mp) => sum + (mp.totalEstimatedCost || 0), 0);
-    const totalSpend = totalSpendVal > 0 ? `$${totalSpendVal.toFixed(2)}` : '$5.00';
+    const totalSpendVal = user.mealPlans.reduce(
+      (sum, mp) => sum + (mp.totalEstimatedCost || 0),
+      0,
+    );
+    const totalSpend =
+      totalSpendVal > 0 ? `$${totalSpendVal.toFixed(2)}` : "$5.00";
 
     return {
       ...sanitized,
@@ -511,7 +568,7 @@ export class AdminService {
       address,
       joiningDate,
       avatar: sanitizeAvatarUrl(user.avatarUrl, displayName, 0),
-      currentPlan: activeSubscription?.planName || 'Annual',
+      currentPlan: activeSubscription?.planName || "Annual",
       activeMeals: user.mealPlans.length || 10,
       totalSpend,
       isBlocked: !!user.isBlocked,
@@ -525,7 +582,7 @@ export class AdminService {
 
   async getLatestTaskUser() {
     const latestTask = await this.prisma.task.findFirst({
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
         user: {
           select: {
@@ -544,7 +601,7 @@ export class AdminService {
     });
 
     if (!latestTask) {
-      throw new NotFoundException('No tasks found in the database');
+      throw new NotFoundException("No tasks found in the database");
     }
 
     return {
@@ -562,7 +619,7 @@ export class AdminService {
 
   async toggleUserBlock(id: string, isBlocked?: boolean) {
     let user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user && id.includes('@')) {
+    if (!user && id.includes("@")) {
       user = await this.prisma.user.findUnique({ where: { email: id } });
     }
     if (!user) {
@@ -571,7 +628,7 @@ export class AdminService {
         const matchingUsers = await this.prisma.user.findMany({
           skip: Math.max(0, numericIndex - 1),
           take: 1,
-          orderBy: { createdAt: 'asc' },
+          orderBy: { createdAt: "asc" },
         });
         if (matchingUsers.length > 0) {
           user = matchingUsers[0];
@@ -583,7 +640,8 @@ export class AdminService {
       throw new NotFoundException(`User with ID "${id}" not found`);
     }
 
-    const newBlockedState = isBlocked !== undefined ? isBlocked : !user.isBlocked;
+    const newBlockedState =
+      isBlocked !== undefined ? isBlocked : !user.isBlocked;
     const updated = await this.prisma.user.update({
       where: { id: user.id },
       data: { isBlocked: newBlockedState },
@@ -597,7 +655,7 @@ export class AdminService {
     return {
       ...result,
       isBlocked: updated.isBlocked,
-      message: `User is now ${updated.isBlocked ? 'BLOCKED' : 'ACTIVE'}`,
+      message: `User is now ${updated.isBlocked ? "BLOCKED" : "ACTIVE"}`,
     };
   }
 
@@ -606,7 +664,7 @@ export class AdminService {
       where: { email: dto.email.toLowerCase().trim() },
     });
     if (existing) {
-      throw new ConflictException('User with this email already exists');
+      throw new ConflictException("User with this email already exists");
     }
 
     const passwordHash = await argon2.hash(dto.password);
@@ -639,7 +697,8 @@ export class AdminService {
         name: dto.name?.trim(),
         phoneNumber: dto.phoneNumber,
         role: dto.role,
-        weeklyBudget: dto.weeklyBudget !== undefined ? Number(dto.weeklyBudget) : undefined,
+        weeklyBudget:
+          dto.weeklyBudget !== undefined ? Number(dto.weeklyBudget) : undefined,
         country: dto.country,
         city: dto.city,
         address: dto.address,
@@ -673,7 +732,10 @@ export class AdminService {
     }
 
     await this.prisma.user.delete({ where: { id } });
-    return { success: true, message: `User "${user.email}" deleted successfully` };
+    return {
+      success: true,
+      message: `User "${user.email}" deleted successfully`,
+    };
   }
 
   // ==========================================
@@ -681,12 +743,12 @@ export class AdminService {
   // ==========================================
   async listSubscriptionPlans() {
     const plans = await this.prisma.subscriptionPlan.findMany({
-      orderBy: { price: 'asc' },
+      orderBy: { price: "asc" },
     });
 
     const subCounts = await this.prisma.subscription.groupBy({
-      by: ['planName'],
-      where: { status: 'ACTIVE' },
+      by: ["planName"],
+      where: { status: "ACTIVE" },
       _count: { id: true },
     });
     const countMap = new Map(subCounts.map((c) => [c.planName, c._count.id]));
@@ -694,9 +756,12 @@ export class AdminService {
     return plans.map((p) => ({
       id: p.id,
       name: p.name,
-      description: p.description || '',
+      description: p.description || "",
       price: p.price.toString(),
-      duration: p.interval === 'yearly' || p.interval === 'annual' ? 'annual' : 'monthly',
+      duration:
+        p.interval === "yearly" || p.interval === "annual"
+          ? "annual"
+          : "monthly",
       features: p.features || [],
       discountPercent: p.discountPercent || 0,
       isPopular: p.isPopular,
@@ -706,16 +771,23 @@ export class AdminService {
   }
 
   async getSubscriptionPlan(id: string) {
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id } });
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id },
+    });
     if (!plan) {
-      throw new NotFoundException(`Subscription plan with ID "${id}" not found`);
+      throw new NotFoundException(
+        `Subscription plan with ID "${id}" not found`,
+      );
     }
     return {
       id: plan.id,
       name: plan.name,
-      description: plan.description || '',
+      description: plan.description || "",
       price: plan.price.toString(),
-      duration: plan.interval === 'yearly' || plan.interval === 'annual' ? 'annual' : 'monthly',
+      duration:
+        plan.interval === "yearly" || plan.interval === "annual"
+          ? "annual"
+          : "monthly",
       features: plan.features || [],
       discountPercent: plan.discountPercent || 0,
       isPopular: plan.isPopular,
@@ -728,10 +800,15 @@ export class AdminService {
       where: { name: dto.name.trim() },
     });
     if (existing) {
-      throw new ConflictException(`Subscription plan "${dto.name}" already exists`);
+      throw new ConflictException(
+        `Subscription plan "${dto.name}" already exists`,
+      );
     }
 
-    const interval = dto.interval === 'annual' || dto.interval === 'yearly' ? 'yearly' : 'monthly';
+    const interval =
+      dto.interval === "annual" || dto.interval === "yearly"
+        ? "yearly"
+        : "monthly";
 
     const plan = await this.prisma.subscriptionPlan.create({
       data: {
@@ -739,9 +816,10 @@ export class AdminService {
         description: dto.description || null,
         price: Number(dto.price),
         interval,
-        currency: dto.currency || 'USD',
+        currency: dto.currency || "USD",
         features: dto.features || [],
-        discountPercent: dto.discountPercent !== undefined ? Number(dto.discountPercent) : 0.0,
+        discountPercent:
+          dto.discountPercent !== undefined ? Number(dto.discountPercent) : 0.0,
         isPopular: dto.isPopular || false,
         isActive: dto.isActive !== undefined ? dto.isActive : true,
       },
@@ -750,17 +828,21 @@ export class AdminService {
     return {
       id: plan.id,
       name: plan.name,
-      description: plan.description || '',
+      description: plan.description || "",
       price: plan.price.toString(),
-      duration: plan.interval === 'yearly' ? 'annual' : 'monthly',
+      duration: plan.interval === "yearly" ? "annual" : "monthly",
       features: plan.features || [],
     };
   }
 
   async updateSubscriptionPlan(id: string, dto: UpdateSubscriptionPlanDto) {
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id } });
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id },
+    });
     if (!plan) {
-      throw new NotFoundException(`Subscription plan with ID "${id}" not found`);
+      throw new NotFoundException(
+        `Subscription plan with ID "${id}" not found`,
+      );
     }
 
     if (dto.name && dto.name.trim() !== plan.name) {
@@ -774,7 +856,11 @@ export class AdminService {
       }
     }
 
-    const interval = dto.interval ? (dto.interval === 'annual' || dto.interval === 'yearly' ? 'yearly' : 'monthly') : undefined;
+    const interval = dto.interval
+      ? dto.interval === "annual" || dto.interval === "yearly"
+        ? "yearly"
+        : "monthly"
+      : undefined;
 
     const updated = await this.prisma.subscriptionPlan.update({
       where: { id },
@@ -786,7 +872,9 @@ export class AdminService {
         currency: dto.currency,
         features: dto.features,
         discountPercent:
-          dto.discountPercent !== undefined ? Number(dto.discountPercent) : undefined,
+          dto.discountPercent !== undefined
+            ? Number(dto.discountPercent)
+            : undefined,
         isPopular: dto.isPopular,
         isActive: dto.isActive,
       },
@@ -795,17 +883,21 @@ export class AdminService {
     return {
       id: updated.id,
       name: updated.name,
-      description: updated.description || '',
+      description: updated.description || "",
       price: updated.price.toString(),
-      duration: updated.interval === 'yearly' ? 'annual' : 'monthly',
+      duration: updated.interval === "yearly" ? "annual" : "monthly",
       features: updated.features || [],
     };
   }
 
   async toggleSubscriptionPlanStatus(id: string) {
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id } });
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id },
+    });
     if (!plan) {
-      throw new NotFoundException(`Subscription plan with ID "${id}" not found`);
+      throw new NotFoundException(
+        `Subscription plan with ID "${id}" not found`,
+      );
     }
 
     return this.prisma.subscriptionPlan.update({
@@ -815,13 +907,20 @@ export class AdminService {
   }
 
   async deleteSubscriptionPlan(id: string) {
-    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id } });
+    const plan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id },
+    });
     if (!plan) {
-      throw new NotFoundException(`Subscription plan with ID "${id}" not found`);
+      throw new NotFoundException(
+        `Subscription plan with ID "${id}" not found`,
+      );
     }
 
     await this.prisma.subscriptionPlan.delete({ where: { id } });
-    return { success: true, message: `Subscription plan "${plan.name}" deleted successfully` };
+    return {
+      success: true,
+      message: `Subscription plan "${plan.name}" deleted successfully`,
+    };
   }
 
   // ==========================================
@@ -830,17 +929,25 @@ export class AdminService {
   async getSubscriptionOverview() {
     const [totalSubs, activeSubs, monthlySubs, annualSubs] = await Promise.all([
       this.prisma.subscription.count(),
-      this.prisma.subscription.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.subscription.count({ where: { status: "ACTIVE" } }),
       this.prisma.subscription.count({
-        where: { status: 'ACTIVE', planName: { contains: 'Monthly', mode: 'insensitive' } },
+        where: {
+          status: "ACTIVE",
+          planName: { contains: "Monthly", mode: "insensitive" },
+        },
       }),
       this.prisma.subscription.count({
-        where: { status: 'ACTIVE', planName: { contains: 'Annual', mode: 'insensitive' } },
+        where: {
+          status: "ACTIVE",
+          planName: { contains: "Annual", mode: "insensitive" },
+        },
       }),
     ]);
 
-    const monthlyRevVal = Math.round(monthlySubs * 7.99 + (annualSubs * 59.88) / 12);
-    const monthlyRevenue = `$${monthlyRevVal > 0 ? monthlyRevVal.toLocaleString() : '264'}`;
+    const monthlyRevVal = Math.round(
+      monthlySubs * 7.99 + (annualSubs * 59.88) / 12,
+    );
+    const monthlyRevenue = `$${monthlyRevVal > 0 ? monthlyRevVal.toLocaleString() : "264"}`;
 
     return {
       totalSubscriptions: totalSubs,
@@ -848,7 +955,10 @@ export class AdminService {
       annualSubscribers: annualSubs || activeSubs,
       monthlySubscribers: monthlySubs,
       monthlyRevenue,
-      retentionRate: totalSubs > 0 ? `${Math.round((activeSubs / totalSubs) * 100)}%` : '100%',
+      retentionRate:
+        totalSubs > 0
+          ? `${Math.round((activeSubs / totalSubs) * 100)}%`
+          : "100%",
     };
   }
 
@@ -862,17 +972,17 @@ export class AdminService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
-    if (statusFilter && statusFilter !== 'All') {
+    if (statusFilter && statusFilter !== "All") {
       where.status = statusFilter.toUpperCase();
     }
-    if (planFilter && planFilter !== 'All') {
-      where.planName = { contains: planFilter, mode: 'insensitive' };
+    if (planFilter && planFilter !== "All") {
+      where.planName = { contains: planFilter, mode: "insensitive" };
     }
     if (search) {
       where.user = {
         OR: [
-          { email: { contains: search, mode: 'insensitive' } },
-          { name: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: "insensitive" } },
+          { name: { contains: search, mode: "insensitive" } },
         ],
       };
     }
@@ -882,10 +992,16 @@ export class AdminService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           user: {
-            select: { id: true, email: true, name: true, avatarUrl: true, createdAt: true },
+            select: {
+              id: true,
+              email: true,
+              name: true,
+              avatarUrl: true,
+              createdAt: true,
+            },
           },
         },
       }),
@@ -908,19 +1024,19 @@ export class AdminService {
     limit = 10,
     search?: string,
     subscriptionType?: string,
-    sortOrder: 'asc' | 'desc' = 'desc',
+    sortOrder: "asc" | "desc" = "desc",
   ) {
     const skip = (page - 1) * limit;
     const where: any = {};
 
-    if (subscriptionType && subscriptionType !== 'All') {
-      where.planName = { contains: subscriptionType, mode: 'insensitive' };
+    if (subscriptionType && subscriptionType !== "All") {
+      where.planName = { contains: subscriptionType, mode: "insensitive" };
     }
     if (search) {
       where.user = {
         OR: [
-          { email: { contains: search, mode: 'insensitive' } },
-          { name: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: "insensitive" } },
+          { name: { contains: search, mode: "insensitive" } },
         ],
       };
     }
@@ -948,32 +1064,34 @@ export class AdminService {
 
     const formatted = subscriptions.map((s, i) => {
       const u = s.user;
-      const displayName = u.name || u.email.split('@')[0];
-      const isAnnual = s.planName.toLowerCase().includes('annual');
-      const subType = isAnnual ? 'Annual' : 'Monthly';
-      const price = isAnnual ? '$59.88' : '$7.99';
+      const displayName = u.name || u.email.split("@")[0];
+      const isAnnual = s.planName.toLowerCase().includes("annual");
+      const subType = isAnnual ? "Annual" : "Monthly";
+      const price = isAnnual ? "$59.88" : "$7.99";
 
       const expireDate = s.currentPeriodEnd
-        ? s.currentPeriodEnd.toISOString().split('T')[0]
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        ? s.currentPeriodEnd.toISOString().split("T")[0]
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split("T")[0];
 
       return {
         id: s.id,
         userId: u.id,
-        sl: String((page - 1) * limit + i + 1).padStart(2, '0'),
+        sl: String((page - 1) * limit + i + 1).padStart(2, "0"),
         userName: displayName,
         email: u.email,
         avatar: sanitizeAvatarUrl(u.avatarUrl, displayName, i),
         subscriptionType: subType,
         price,
         expireDate,
-        expireTime: '02:20PM',
-        joiningDate: u.createdAt.toISOString().split('T')[0],
+        expireTime: "02:20PM",
+        joiningDate: u.createdAt.toISOString().split("T")[0],
         transactionId: `TXN${s.id.slice(0, 8).toUpperCase()}`,
-        withdrawAmount: isAnnual ? '$120' : '$20',
-        currentPeriodStart: u.createdAt.toISOString().split('T')[0],
-        cardType: 'Visa/Pay',
-        status: s.status === 'ACTIVE' ? 'Approved' : s.status,
+        withdrawAmount: isAnnual ? "$120" : "$20",
+        currentPeriodStart: u.createdAt.toISOString().split("T")[0],
+        cardType: "Visa/Pay",
+        status: s.status === "ACTIVE" ? "Approved" : s.status,
       };
     });
 
@@ -1002,13 +1120,16 @@ export class AdminService {
   }
 
   async assignSubscription(dto: AssignSubscriptionDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: dto.userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+    });
     if (!user) {
       throw new NotFoundException(`User with ID "${dto.userId}" not found`);
     }
 
     const duration =
-      dto.durationDays || (dto.planName.toLowerCase().includes('annual') ? 365 : 30);
+      dto.durationDays ||
+      (dto.planName.toLowerCase().includes("annual") ? 365 : 30);
     const periodEnd = new Date();
     periodEnd.setDate(periodEnd.getDate() + duration);
 
@@ -1016,7 +1137,7 @@ export class AdminService {
       data: {
         userId: dto.userId,
         planName: dto.planName,
-        status: 'ACTIVE',
+        status: "ACTIVE",
         currentPeriodEnd: periodEnd,
       },
       include: { user: { select: { email: true, name: true } } },
@@ -1031,7 +1152,7 @@ export class AdminService {
 
     return this.prisma.subscription.update({
       where: { id },
-      data: { status: 'CANCELED' },
+      data: { status: "CANCELED" },
     });
   }
 
@@ -1049,17 +1170,17 @@ export class AdminService {
     const where: any = {};
 
     if (cuisine) {
-      where.cuisine = { equals: cuisine, mode: 'insensitive' };
+      where.cuisine = { equals: cuisine, mode: "insensitive" };
     }
-    if (category && category !== 'All') {
-      where.mealType = { equals: category, mode: 'insensitive' };
+    if (category && category !== "All") {
+      where.mealType = { equals: category, mode: "insensitive" };
     }
     if (search) {
       where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { cuisine: { contains: search, mode: 'insensitive' } },
-        { mealType: { contains: search, mode: 'insensitive' } },
+        { title: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+        { cuisine: { contains: search, mode: "insensitive" } },
+        { mealType: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -1068,22 +1189,25 @@ export class AdminService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
       }),
       this.prisma.meal.count({ where }),
     ]);
 
     const formatted = meals.map((m) => {
-      const uses = m.cookedCount > 1000 ? `${(m.cookedCount / 1000).toFixed(1)}k` : `${m.cookedCount}`;
+      const uses =
+        m.cookedCount > 1000
+          ? `${(m.cookedCount / 1000).toFixed(1)}k`
+          : `${m.cookedCount}`;
       return {
         id: m.id,
         name: m.title,
-        type: m.mealType || 'Dinner',
-        cuisine: m.cuisine || 'American',
+        type: m.mealType || "Dinner",
+        cuisine: m.cuisine || "American",
         duration: `${m.prepTimeMinutes}m`,
         price: `$${m.estimatedCost.toFixed(2)}`,
-        status: m.status || 'Active',
-        uses: uses !== '0' ? uses : '12.8k',
+        status: m.status || "Active",
+        uses: uses !== "0" ? uses : "12.8k",
         rawCost: m.estimatedCost,
         rawDuration: m.prepTimeMinutes,
         servings: m.servings || 4,
@@ -1122,9 +1246,9 @@ export class AdminService {
         prepTimeMinutes: Number(dto.prepTimeMinutes) || 15,
         servings: Number(dto.servings) || 4,
         estimatedCost: Number(dto.estimatedCost) || 15.0,
-        cuisine: dto.cuisine || 'American',
-        mealType: dto.mealType || 'Dinner',
-        status: dto.status || 'Active',
+        cuisine: dto.cuisine || "American",
+        mealType: dto.mealType || "Dinner",
+        status: dto.status || "Active",
         dietaryTags: dto.dietaryTags || [],
         instructions: dto.instructions || [],
         ingredients: dto.ingredients || [],
@@ -1132,7 +1256,7 @@ export class AdminService {
       },
     });
 
-    await this.recordAuditLog('MEAL_CREATED', 'Meal', meal.id, {
+    await this.recordAuditLog("MEAL_CREATED", "Meal", meal.id, {
       title: meal.title,
       cuisine: meal.cuisine,
       price: meal.estimatedCost,
@@ -1146,7 +1270,7 @@ export class AdminService {
       duration: `${meal.prepTimeMinutes}m`,
       price: `$${meal.estimatedCost.toFixed(2)}`,
       status: meal.status,
-      uses: '0',
+      uses: "0",
     };
   }
 
@@ -1162,9 +1286,14 @@ export class AdminService {
         title: dto.title,
         description: dto.description,
         prepTimeMinutes:
-          dto.prepTimeMinutes !== undefined ? Number(dto.prepTimeMinutes) : undefined,
+          dto.prepTimeMinutes !== undefined
+            ? Number(dto.prepTimeMinutes)
+            : undefined,
         servings: dto.servings !== undefined ? Number(dto.servings) : undefined,
-        estimatedCost: dto.estimatedCost !== undefined ? Number(dto.estimatedCost) : undefined,
+        estimatedCost:
+          dto.estimatedCost !== undefined
+            ? Number(dto.estimatedCost)
+            : undefined,
         cuisine: dto.cuisine,
         mealType: dto.mealType,
         status: dto.status,
@@ -1175,7 +1304,7 @@ export class AdminService {
       },
     });
 
-    await this.recordAuditLog('MEAL_UPDATED', 'Meal', updated.id, {
+    await this.recordAuditLog("MEAL_UPDATED", "Meal", updated.id, {
       title: updated.title,
       status: updated.status,
     });
@@ -1199,8 +1328,13 @@ export class AdminService {
     }
 
     await this.prisma.meal.delete({ where: { id } });
-    await this.recordAuditLog('MEAL_DELETED', 'Meal', id, { title: meal.title });
-    return { success: true, message: `Recipe "${meal.title}" deleted successfully` };
+    await this.recordAuditLog("MEAL_DELETED", "Meal", id, {
+      title: meal.title,
+    });
+    return {
+      success: true,
+      message: `Recipe "${meal.title}" deleted successfully`,
+    };
   }
 
   // ==========================================
@@ -1208,44 +1342,54 @@ export class AdminService {
   // ==========================================
   async getMealOptions() {
     const defaultDiets = [
-      'Vegetarian',
-      'Vegan',
-      'Halal',
-      'Kosher',
-      'Gluten-free',
-      'Dairy-free',
-      'Nut-free',
-      'Pescatarian',
-      'High-protein',
+      "Vegetarian",
+      "Vegan",
+      "Halal",
+      "Kosher",
+      "Gluten-free",
+      "Dairy-free",
+      "Nut-free",
+      "Pescatarian",
+      "High-protein",
     ];
     const defaultCuisines = [
-      'Italian',
-      'Mexican',
-      'Asian',
-      'Mediterranean',
-      'American',
-      'Indian',
-      'Middle Eastern',
-      'British',
+      "Italian",
+      "Mexican",
+      "Asian",
+      "Mediterranean",
+      "American",
+      "Indian",
+      "Middle Eastern",
+      "British",
     ];
 
     const [dietsSetting, cuisinesSetting] = await Promise.all([
-      this.prisma.systemSetting.findUnique({ where: { key: 'taxonomy_diets' } }),
-      this.prisma.systemSetting.findUnique({ where: { key: 'taxonomy_cuisines' } }),
+      this.prisma.systemSetting.findUnique({
+        where: { key: "taxonomy_diets" },
+      }),
+      this.prisma.systemSetting.findUnique({
+        where: { key: "taxonomy_cuisines" },
+      }),
     ]);
 
     const diets = dietsSetting ? JSON.parse(dietsSetting.value) : defaultDiets;
-    const cuisines = cuisinesSetting ? JSON.parse(cuisinesSetting.value) : defaultCuisines;
+    const cuisines = cuisinesSetting
+      ? JSON.parse(cuisinesSetting.value)
+      : defaultCuisines;
 
     return { diets, cuisines };
   }
 
-  async addMealOption(type: 'diet' | 'cuisine', value: string) {
-    const key = type === 'diet' ? 'taxonomy_diets' : 'taxonomy_cuisines';
+  async addMealOption(type: "diet" | "cuisine", value: string) {
+    const key = type === "diet" ? "taxonomy_diets" : "taxonomy_cuisines";
     const current = await this.getMealOptions();
-    const list = type === 'diet' ? current.diets : current.cuisines;
+    const list = type === "diet" ? current.diets : current.cuisines;
 
-    if (!list.some((item: string) => item.toLowerCase() === value.trim().toLowerCase())) {
+    if (
+      !list.some(
+        (item: string) => item.toLowerCase() === value.trim().toLowerCase(),
+      )
+    ) {
       list.push(value.trim());
       await this.prisma.systemSetting.upsert({
         where: { key },
@@ -1257,10 +1401,10 @@ export class AdminService {
     return this.getMealOptions();
   }
 
-  async removeMealOption(type: 'diet' | 'cuisine', value: string) {
-    const key = type === 'diet' ? 'taxonomy_diets' : 'taxonomy_cuisines';
+  async removeMealOption(type: "diet" | "cuisine", value: string) {
+    const key = type === "diet" ? "taxonomy_diets" : "taxonomy_cuisines";
     const current = await this.getMealOptions();
-    const list = (type === 'diet' ? current.diets : current.cuisines).filter(
+    const list = (type === "diet" ? current.diets : current.cuisines).filter(
       (item: string) => item.toLowerCase() !== value.trim().toLowerCase(),
     );
 
@@ -1282,12 +1426,12 @@ export class AdminService {
       where.isActive = isActive;
     }
     if (search) {
-      where.code = { contains: search, mode: 'insensitive' };
+      where.code = { contains: search, mode: "insensitive" };
     }
 
     return this.prisma.coupon.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
         _count: { select: { redemptions: true } },
       },
@@ -1300,7 +1444,7 @@ export class AdminService {
       include: {
         redemptions: {
           include: { user: { select: { email: true, name: true } } },
-          orderBy: { redeemedAt: 'desc' },
+          orderBy: { redeemedAt: "desc" },
         },
       },
     });
@@ -1324,7 +1468,8 @@ export class AdminService {
         code: dto.code.trim().toUpperCase(),
         discountPercent: Number(dto.discountPercent),
         validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
-        maxRedemptions: dto.maxRedemptions !== undefined ? Number(dto.maxRedemptions) : 100,
+        maxRedemptions:
+          dto.maxRedemptions !== undefined ? Number(dto.maxRedemptions) : 100,
         isActive: true,
       },
     });
@@ -1340,11 +1485,19 @@ export class AdminService {
       where: { id },
       data: {
         discountPercent:
-          dto.discountPercent !== undefined ? Number(dto.discountPercent) : undefined,
+          dto.discountPercent !== undefined
+            ? Number(dto.discountPercent)
+            : undefined,
         validUntil:
-          dto.validUntil !== undefined ? (dto.validUntil ? new Date(dto.validUntil) : null) : undefined,
+          dto.validUntil !== undefined
+            ? dto.validUntil
+              ? new Date(dto.validUntil)
+              : null
+            : undefined,
         maxRedemptions:
-          dto.maxRedemptions !== undefined ? Number(dto.maxRedemptions) : undefined,
+          dto.maxRedemptions !== undefined
+            ? Number(dto.maxRedemptions)
+            : undefined,
       },
     });
   }
@@ -1368,7 +1521,10 @@ export class AdminService {
     }
 
     await this.prisma.coupon.delete({ where: { id } });
-    return { success: true, message: `Coupon "${coupon.code}" deleted successfully` };
+    return {
+      success: true,
+      message: `Coupon "${coupon.code}" deleted successfully`,
+    };
   }
 
   // ==========================================
@@ -1386,7 +1542,7 @@ export class AdminService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
       }),
       this.prisma.contactMessage.count({ where }),
     ]);
@@ -1398,7 +1554,9 @@ export class AdminService {
   }
 
   async getContactMessage(id: string) {
-    const message = await this.prisma.contactMessage.findUnique({ where: { id } });
+    const message = await this.prisma.contactMessage.findUnique({
+      where: { id },
+    });
     if (!message) {
       throw new NotFoundException(`Contact message with ID "${id}" not found`);
     }
@@ -1406,7 +1564,9 @@ export class AdminService {
   }
 
   async updateContactStatus(id: string, status: string) {
-    const message = await this.prisma.contactMessage.findUnique({ where: { id } });
+    const message = await this.prisma.contactMessage.findUnique({
+      where: { id },
+    });
     if (!message) {
       throw new NotFoundException(`Contact message with ID "${id}" not found`);
     }
@@ -1418,13 +1578,15 @@ export class AdminService {
   }
 
   async deleteContactMessage(id: string) {
-    const message = await this.prisma.contactMessage.findUnique({ where: { id } });
+    const message = await this.prisma.contactMessage.findUnique({
+      where: { id },
+    });
     if (!message) {
       throw new NotFoundException(`Contact message with ID "${id}" not found`);
     }
 
     await this.prisma.contactMessage.delete({ where: { id } });
-    return { success: true, message: 'Contact message deleted successfully' };
+    return { success: true, message: "Contact message deleted successfully" };
   }
 
   // ==========================================
@@ -1432,7 +1594,7 @@ export class AdminService {
   // ==========================================
   async getEarningsAnalytics() {
     const [activeSubs, totalSubs, ratioData] = await Promise.all([
-      this.prisma.subscription.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.subscription.count({ where: { status: "ACTIVE" } }),
       this.prisma.subscription.count(),
       this.getUserRatioAnalytics(),
     ]);
@@ -1446,7 +1608,10 @@ export class AdminService {
       annualRecurringRevenue: Math.round(annualTotal * 100) / 100,
       totalSubscribers: totalSubs || ratioData.stats.totalUsers,
       annualSubscribers: activeSubs || ratioData.stats.subscribedUsers,
-      monthlySubscribers: Math.max(0, (totalSubs || ratioData.stats.totalUsers) - activeSubs),
+      monthlySubscribers: Math.max(
+        0,
+        (totalSubs || ratioData.stats.totalUsers) - activeSubs,
+      ),
       chartData: ratioData.chartData,
       peak: ratioData.peak,
     };
@@ -1458,7 +1623,9 @@ export class AdminService {
   async getSettings(currentUserId?: string) {
     let adminUser = null;
     if (currentUserId) {
-      adminUser = await this.prisma.user.findUnique({ where: { id: currentUserId } });
+      adminUser = await this.prisma.user.findUnique({
+        where: { id: currentUserId },
+      });
     }
     if (!adminUser) {
       adminUser = await this.prisma.user.findFirst({
@@ -1473,48 +1640,58 @@ export class AdminService {
     }
 
     const profile = {
-      name: adminUser?.name || 'Super Admin',
-      email: adminUser?.email || 'admin@sizzl.com',
-      phone: adminUser?.phoneNumber || '+1 234 567 8900',
-      address: adminUser?.address || adminUser?.city || 'USA',
-      role: 'Admin',
+      name: adminUser?.name || "Super Admin",
+      email: adminUser?.email || "admin@sizzl.com",
+      phone: adminUser?.phoneNumber || "+1 234 567 8900",
+      address: adminUser?.address || adminUser?.city || "USA",
+      role: "Admin",
       memberSince: adminUser?.createdAt
-        ? new Date(adminUser.createdAt).toLocaleString('en-US', { month: 'long' })
-        : 'January',
-      avatar: sanitizeAvatarUrl(adminUser?.avatarUrl, adminUser?.name || 'Super Admin', 0),
+        ? new Date(adminUser.createdAt).toLocaleString("en-US", {
+            month: "long",
+          })
+        : "January",
+      avatar: sanitizeAvatarUrl(
+        adminUser?.avatarUrl,
+        adminUser?.name || "Super Admin",
+        0,
+      ),
     };
 
     const preferences = {
-      language: map['pref_language'] || 'English (UK)',
-      timezone: map['pref_timezone'] || 'GMT +06:00',
-      notifications: map['pref_notifications']
-        ? JSON.parse(map['pref_notifications'])
+      language: map["pref_language"] || "English (UK)",
+      timezone: map["pref_timezone"] || "GMT +06:00",
+      notifications: map["pref_notifications"]
+        ? JSON.parse(map["pref_notifications"])
         : [true, true, false, true],
     };
 
     const contact = {
-      title: map['contact_title'] || 'Get in touch with us',
-      email: map['contact_email'] || 'Support@gmail.com',
-      phone: map['contact_phone'] || '5454588',
-      address: map['contact_address'] || 'Dhaka, Bangladesh',
+      title: map["contact_title"] || "Get in touch with us",
+      email: map["contact_email"] || "Support@gmail.com",
+      phone: map["contact_phone"] || "5454588",
+      address: map["contact_address"] || "Dhaka, Bangladesh",
     };
 
     const appConfig = {
-      trialDays: map['config_trialDays'] || '7',
-      defaultHousehold: map['config_defaultHousehold'] || '4',
-      aiModel: map['config_aiModel'] || 'claude-sonnet-4-20250514',
-      maxSuggestions: map['config_maxSuggestions'] || '6',
+      trialDays: map["config_trialDays"] || "7",
+      defaultHousehold: map["config_defaultHousehold"] || "4",
+      aiModel: map["config_aiModel"] || "claude-sonnet-4-20250514",
+      maxSuggestions: map["config_maxSuggestions"] || "6",
     };
 
     const bannersCopy = {
-      paywallHeadline: map['banner_paywallHeadline'] || 'Your free trial has ended',
-      onboardingWelcome: map['banner_onboardingWelcome'] || "Let's build your first meal plan.",
-      planCompleteMessage: map['banner_planCompleteMessage'] || 'You cooked everything in this plan. Nice work.',
+      paywallHeadline:
+        map["banner_paywallHeadline"] || "Your free trial has ended",
+      onboardingWelcome:
+        map["banner_onboardingWelcome"] || "Let's build your first meal plan.",
+      planCompleteMessage:
+        map["banner_planCompleteMessage"] ||
+        "You cooked everything in this plan. Nice work.",
     };
 
     const [privacyPage, aboutPage] = await Promise.all([
-      this.prisma.staticPage.findUnique({ where: { slug: 'privacy-policy' } }),
-      this.prisma.staticPage.findUnique({ where: { slug: 'about-us' } }),
+      this.prisma.staticPage.findUnique({ where: { slug: "privacy-policy" } }),
+      this.prisma.staticPage.findUnique({ where: { slug: "about-us" } }),
     ]);
 
     return {
@@ -1523,18 +1700,27 @@ export class AdminService {
       contact,
       appConfig,
       bannersCopy,
-      privacy: privacyPage?.content || 'At Sizzl, we value your privacy and are committed to protecting your personal information. This policy explains how we collect, use, store, and safeguard information when you use our meal management services. We only collect information necessary to provide a safe, personalized experience, process subscriptions, and improve our products. Your information is never sold to third parties. We use appropriate security measures and retain data only for as long as required to deliver our services or meet legal obligations.',
-      about: aboutPage?.content || 'Sizzl makes everyday meal planning simple, personal, and enjoyable. Our platform helps people discover meals, organize food choices, and manage subscriptions in one clear place. We believe healthy decisions should fit naturally into daily life, so we combine practical tools with thoughtfully selected recipes and reliable nutritional information. Our team is focused on building a friendly service that saves time and supports better eating habits.',
+      privacy:
+        privacyPage?.content ||
+        "At Sizzl, we value your privacy and are committed to protecting your personal information. This policy explains how we collect, use, store, and safeguard information when you use our meal management services. We only collect information necessary to provide a safe, personalized experience, process subscriptions, and improve our products. Your information is never sold to third parties. We use appropriate security measures and retain data only for as long as required to deliver our services or meet legal obligations.",
+      about:
+        aboutPage?.content ||
+        "Sizzl makes everyday meal planning simple, personal, and enjoyable. Our platform helps people discover meals, organize food choices, and manage subscriptions in one clear place. We believe healthy decisions should fit naturally into daily life, so we combine practical tools with thoughtfully selected recipes and reliable nutritional information. Our team is focused on building a friendly service that saves time and supports better eating habits.",
     };
   }
 
-  async updateAdminProfile(userId: string | undefined, dto: UpdateAdminProfileDto) {
+  async updateAdminProfile(
+    userId: string | undefined,
+    dto: UpdateAdminProfileDto,
+  ) {
     let admin = null;
     if (userId) {
       admin = await this.prisma.user.findUnique({ where: { id: userId } });
     }
     if (!admin) {
-      admin = await this.prisma.user.findFirst({ where: { role: Role.SUPER_ADMIN } });
+      admin = await this.prisma.user.findFirst({
+        where: { role: Role.SUPER_ADMIN },
+      });
     }
 
     if (admin) {
@@ -1546,7 +1732,9 @@ export class AdminService {
 
       if (dto.email && dto.email.trim().toLowerCase() !== admin.email) {
         const cleanEmail = dto.email.trim().toLowerCase();
-        const conflict = await this.prisma.user.findUnique({ where: { email: cleanEmail } });
+        const conflict = await this.prisma.user.findUnique({
+          where: { email: cleanEmail },
+        });
         if (!conflict) {
           dataToUpdate.email = cleanEmail;
         }
@@ -1558,43 +1746,57 @@ export class AdminService {
       });
 
       return {
-        name: updated.name || 'Bashar Islam',
+        name: updated.name || "Bashar Islam",
         email: updated.email,
-        phone: updated.phoneNumber || '1819488101',
-        address: updated.address || 'USA',
-        role: 'Admin',
-        memberSince: updated.createdAt.toLocaleString('en-US', { month: 'long' }),
-        avatar: sanitizeAvatarUrl(updated.avatarUrl, updated.name || 'Super Admin', 0),
+        phone: updated.phoneNumber || "1819488101",
+        address: updated.address || "USA",
+        role: "Admin",
+        memberSince: updated.createdAt.toLocaleString("en-US", {
+          month: "long",
+        }),
+        avatar: sanitizeAvatarUrl(
+          updated.avatarUrl,
+          updated.name || "Super Admin",
+          0,
+        ),
       };
     }
 
     return {
-      name: dto.name || 'Bashar Islam',
-      email: dto.email || 'bashar.islam12@gmail.com',
-      phone: dto.phone || '1819488101',
-      address: dto.address || 'USA',
-      role: 'Admin',
-      memberSince: 'January',
+      name: dto.name || "Bashar Islam",
+      email: dto.email || "bashar.islam12@gmail.com",
+      phone: dto.phone || "1819488101",
+      address: dto.address || "USA",
+      role: "Admin",
+      memberSince: "January",
       avatar: dto.avatar || DEFAULT_AVATAR,
     };
   }
 
-  async changeAdminPassword(userId: string | undefined, dto: ChangeAdminPasswordDto) {
+  async changeAdminPassword(
+    userId: string | undefined,
+    dto: ChangeAdminPasswordDto,
+  ) {
     let admin = null;
     if (userId) {
       admin = await this.prisma.user.findUnique({ where: { id: userId } });
     }
     if (!admin) {
-      admin = await this.prisma.user.findFirst({ where: { role: Role.SUPER_ADMIN } });
+      admin = await this.prisma.user.findFirst({
+        where: { role: Role.SUPER_ADMIN },
+      });
     }
 
     if (!admin) {
-      throw new NotFoundException('Admin account not found');
+      throw new NotFoundException("Admin account not found");
     }
 
-    const isValid = await argon2.verify(admin.passwordHash, dto.currentPassword);
+    const isValid = await argon2.verify(
+      admin.passwordHash,
+      dto.currentPassword,
+    );
     if (!isValid) {
-      throw new BadRequestException('Incorrect current password');
+      throw new BadRequestException("Incorrect current password");
     }
 
     const newHash = await argon2.hash(dto.newPassword);
@@ -1603,7 +1805,7 @@ export class AdminService {
       data: { passwordHash: newHash },
     });
 
-    return { success: true, message: 'Password updated successfully' };
+    return { success: true, message: "Password updated successfully" };
   }
 
   async updateAppConfig(dto: UpdateAppConfigDto) {
@@ -1612,36 +1814,39 @@ export class AdminService {
     if (dto.trialDays) {
       promises.push(
         this.prisma.systemSetting.upsert({
-          where: { key: 'config_trialDays' },
+          where: { key: "config_trialDays" },
           update: { value: dto.trialDays },
-          create: { key: 'config_trialDays', value: dto.trialDays },
+          create: { key: "config_trialDays", value: dto.trialDays },
         }),
       );
     }
     if (dto.defaultHousehold) {
       promises.push(
         this.prisma.systemSetting.upsert({
-          where: { key: 'config_defaultHousehold' },
+          where: { key: "config_defaultHousehold" },
           update: { value: dto.defaultHousehold },
-          create: { key: 'config_defaultHousehold', value: dto.defaultHousehold },
+          create: {
+            key: "config_defaultHousehold",
+            value: dto.defaultHousehold,
+          },
         }),
       );
     }
     if (dto.aiModel) {
       promises.push(
         this.prisma.systemSetting.upsert({
-          where: { key: 'config_aiModel' },
+          where: { key: "config_aiModel" },
           update: { value: dto.aiModel },
-          create: { key: 'config_aiModel', value: dto.aiModel },
+          create: { key: "config_aiModel", value: dto.aiModel },
         }),
       );
     }
     if (dto.maxSuggestions) {
       promises.push(
         this.prisma.systemSetting.upsert({
-          where: { key: 'config_maxSuggestions' },
+          where: { key: "config_maxSuggestions" },
           update: { value: dto.maxSuggestions },
-          create: { key: 'config_maxSuggestions', value: dto.maxSuggestions },
+          create: { key: "config_maxSuggestions", value: dto.maxSuggestions },
         }),
       );
     }
@@ -1650,27 +1855,36 @@ export class AdminService {
       if (dto.bannersCopy.paywallHeadline) {
         promises.push(
           this.prisma.systemSetting.upsert({
-            where: { key: 'banner_paywallHeadline' },
+            where: { key: "banner_paywallHeadline" },
             update: { value: dto.bannersCopy.paywallHeadline },
-            create: { key: 'banner_paywallHeadline', value: dto.bannersCopy.paywallHeadline },
+            create: {
+              key: "banner_paywallHeadline",
+              value: dto.bannersCopy.paywallHeadline,
+            },
           }),
         );
       }
       if (dto.bannersCopy.onboardingWelcome) {
         promises.push(
           this.prisma.systemSetting.upsert({
-            where: { key: 'banner_onboardingWelcome' },
+            where: { key: "banner_onboardingWelcome" },
             update: { value: dto.bannersCopy.onboardingWelcome },
-            create: { key: 'banner_onboardingWelcome', value: dto.bannersCopy.onboardingWelcome },
+            create: {
+              key: "banner_onboardingWelcome",
+              value: dto.bannersCopy.onboardingWelcome,
+            },
           }),
         );
       }
       if (dto.bannersCopy.planCompleteMessage) {
         promises.push(
           this.prisma.systemSetting.upsert({
-            where: { key: 'banner_planCompleteMessage' },
+            where: { key: "banner_planCompleteMessage" },
             update: { value: dto.bannersCopy.planCompleteMessage },
-            create: { key: 'banner_planCompleteMessage', value: dto.bannersCopy.planCompleteMessage },
+            create: {
+              key: "banner_planCompleteMessage",
+              value: dto.bannersCopy.planCompleteMessage,
+            },
           }),
         );
       }
@@ -1686,36 +1900,36 @@ export class AdminService {
     if (dto.email) {
       promises.push(
         this.prisma.systemSetting.upsert({
-          where: { key: 'contact_email' },
+          where: { key: "contact_email" },
           update: { value: dto.email },
-          create: { key: 'contact_email', value: dto.email },
+          create: { key: "contact_email", value: dto.email },
         }),
       );
     }
     if (dto.phone) {
       promises.push(
         this.prisma.systemSetting.upsert({
-          where: { key: 'contact_phone' },
+          where: { key: "contact_phone" },
           update: { value: dto.phone },
-          create: { key: 'contact_phone', value: dto.phone },
+          create: { key: "contact_phone", value: dto.phone },
         }),
       );
     }
     if (dto.title) {
       promises.push(
         this.prisma.systemSetting.upsert({
-          where: { key: 'contact_title' },
+          where: { key: "contact_title" },
           update: { value: dto.title },
-          create: { key: 'contact_title', value: dto.title },
+          create: { key: "contact_title", value: dto.title },
         }),
       );
     }
     if (dto.address) {
       promises.push(
         this.prisma.systemSetting.upsert({
-          where: { key: 'contact_address' },
+          where: { key: "contact_address" },
           update: { value: dto.address },
-          create: { key: 'contact_address', value: dto.address },
+          create: { key: "contact_address", value: dto.address },
         }),
       );
     }
@@ -1735,47 +1949,58 @@ export class AdminService {
   // ==========================================
   // 11. Audit Logs & Retention Management
   // ==========================================
-  async getAuditLogs(page = 1, limit = 10, search?: string, actionFilter?: string) {
+  async getAuditLogs(
+    page = 1,
+    limit = 10,
+    search?: string,
+    actionFilter?: string,
+  ) {
     let total = await this.prisma.auditLog.count();
     if (total === 0) {
-      const adminUser = await this.prisma.user.findFirst({ where: { role: 'SUPER_ADMIN' } });
+      const adminUser = await this.prisma.user.findFirst({
+        where: { role: "SUPER_ADMIN" },
+      });
       const now = new Date();
       await this.prisma.auditLog.createMany({
         data: [
           {
             userId: adminUser?.id || null,
-            action: 'SYSTEM_INITIALIZED',
-            entity: 'Platform',
+            action: "SYSTEM_INITIALIZED",
+            entity: "Platform",
             entityId: null,
-            details: { version: '1.0.0', status: 'healthy' },
-            ipAddress: '127.0.0.1',
+            details: { version: "1.0.0", status: "healthy" },
+            ipAddress: "127.0.0.1",
             createdAt: new Date(now.getTime() - 1000 * 60 * 120),
           },
           {
             userId: adminUser?.id || null,
-            action: 'ADMIN_LOGIN',
-            entity: 'Auth',
+            action: "ADMIN_LOGIN",
+            entity: "Auth",
             entityId: adminUser?.id || null,
-            details: { email: adminUser?.email || 'admin@sizzl.com' },
-            ipAddress: '127.0.0.1',
+            details: { email: adminUser?.email || "admin@sizzl.com" },
+            ipAddress: "127.0.0.1",
             createdAt: new Date(now.getTime() - 1000 * 60 * 60),
           },
           {
             userId: adminUser?.id || null,
-            action: 'MEAL_CATALOG_SYNCED',
-            entity: 'MealCatalog',
+            action: "MEAL_CATALOG_SYNCED",
+            entity: "MealCatalog",
             entityId: null,
             details: { totalMeals: 21 },
-            ipAddress: '127.0.0.1',
+            ipAddress: "127.0.0.1",
             createdAt: new Date(now.getTime() - 1000 * 60 * 30),
           },
           {
             userId: adminUser?.id || null,
-            action: 'APP_CONFIG_UPDATED',
-            entity: 'SystemSetting',
+            action: "APP_CONFIG_UPDATED",
+            entity: "SystemSetting",
             entityId: null,
-            details: { trialDays: 7, defaultHousehold: 4, aiModel: 'Claude 3.5 Sonnet' },
-            ipAddress: '127.0.0.1',
+            details: {
+              trialDays: 7,
+              defaultHousehold: 4,
+              aiModel: "Claude 3.5 Sonnet",
+            },
+            ipAddress: "127.0.0.1",
             createdAt: new Date(now.getTime() - 1000 * 60 * 10),
           },
         ],
@@ -1784,15 +2009,15 @@ export class AdminService {
 
     const where: any = {};
     if (actionFilter) {
-      where.action = { contains: actionFilter, mode: 'insensitive' };
+      where.action = { contains: actionFilter, mode: "insensitive" };
     }
     if (search) {
       where.OR = [
-        { action: { contains: search, mode: 'insensitive' } },
-        { entity: { contains: search, mode: 'insensitive' } },
-        { ipAddress: { contains: search, mode: 'insensitive' } },
-        { user: { email: { contains: search, mode: 'insensitive' } } },
-        { user: { name: { contains: search, mode: 'insensitive' } } },
+        { action: { contains: search, mode: "insensitive" } },
+        { entity: { contains: search, mode: "insensitive" } },
+        { ipAddress: { contains: search, mode: "insensitive" } },
+        { user: { email: { contains: search, mode: "insensitive" } } },
+        { user: { name: { contains: search, mode: "insensitive" } } },
       ];
     }
 
@@ -1802,7 +2027,7 @@ export class AdminService {
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: { user: { select: { email: true, name: true } } },
     });
 
@@ -1830,8 +2055,8 @@ export class AdminService {
     });
 
     await this.recordAuditLog(
-      'AUDIT_LOGS_PRUNED',
-      'AuditLog',
+      "AUDIT_LOGS_PRUNED",
+      "AuditLog",
       null,
       {
         deletedCount: deleted.count,
@@ -1853,8 +2078,8 @@ export class AdminService {
     const deleted = await this.prisma.auditLog.deleteMany();
 
     await this.recordAuditLog(
-      'AUDIT_LOGS_CLEARED',
-      'AuditLog',
+      "AUDIT_LOGS_CLEARED",
+      "AuditLog",
       null,
       {
         deletedCount: deleted.count,

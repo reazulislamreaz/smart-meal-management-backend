@@ -3,12 +3,12 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
-} from '@nestjs/common';
-import { PrismaService } from '@/database/prisma.service';
-import { OpenAiService, AiPlanMeal } from '../ai/openai.service';
-import { GenerateMealPlanDto } from './dto/generate-meal-plan.dto';
-import { CreateMealPlanDto } from './dto/create-meal-plan.dto';
-import { UpdateMealPlanItemDto } from './dto/update-meal-plan-item.dto';
+} from "@nestjs/common";
+import { PrismaService } from "@/database/prisma.service";
+import { OpenAiService, AiPlanMeal } from "../ai/openai.service";
+import { GenerateMealPlanDto } from "./dto/generate-meal-plan.dto";
+import { CreateMealPlanDto } from "./dto/create-meal-plan.dto";
+import { UpdateMealPlanItemDto } from "./dto/update-meal-plan-item.dto";
 import {
   assertValidMealFrequency,
   countMealsByType,
@@ -18,22 +18,22 @@ import {
   MealSlot,
   resolveMealFrequency,
   resolvePlanningDaysCount,
-} from './utils/meal-frequency.util';
+} from "./utils/meal-frequency.util";
 import {
   buildBudgetComparison,
   withMealPlanResponse,
-} from './utils/meal-plan-response.util';
+} from "./utils/meal-plan-response.util";
 
 const MEAL_PLAN_WITH_ITEMS_INCLUDE = {
   items: {
     include: {
       meal: true,
     },
-    orderBy: [{ dayOfWeek: 'asc' as const }, { mealType: 'asc' as const }],
+    orderBy: [{ dayOfWeek: "asc" as const }, { mealType: "asc" as const }],
   },
 };
 
-const ACTIVE_MEAL_PLAN_STATUSES = ['ACTIVE', 'Active', 'active'];
+const ACTIVE_MEAL_PLAN_STATUSES = ["ACTIVE", "Active", "active"];
 
 @Injectable()
 export class MealPlansService {
@@ -53,7 +53,7 @@ export class MealPlansService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     let pantryItems = await this.prisma.pantryItem.findMany({
@@ -63,12 +63,12 @@ export class MealPlansService {
     // Merge any inline pantry items provided in DTO
     if (dto?.pantryItems && dto.pantryItems.length > 0) {
       const inlinePantry = dto.pantryItems.map((p) => ({
-        id: 'inline',
+        id: "inline",
         userId,
         ingredientName: p.ingredientName,
-        category: p.category || 'Pantry Staples',
+        category: p.category || "Pantry Staples",
         quantity: p.quantity !== undefined ? p.quantity : 1.0,
-        unit: p.unit || 'pcs',
+        unit: p.unit || "pcs",
         isLowStock: false,
         expiryDate: null,
         createdAt: new Date(),
@@ -76,7 +76,9 @@ export class MealPlansService {
       }));
 
       // Combine existing and inline (prevent duplicates)
-      const existingNames = new Set(pantryItems.map((p) => p.ingredientName.toLowerCase().trim()));
+      const existingNames = new Set(
+        pantryItems.map((p) => p.ingredientName.toLowerCase().trim()),
+      );
       for (const item of inlinePantry) {
         if (!existingNames.has(item.ingredientName.toLowerCase().trim())) {
           pantryItems.push(item);
@@ -89,9 +91,9 @@ export class MealPlansService {
           data: dto.pantryItems.map((p) => ({
             userId,
             ingredientName: p.ingredientName,
-            category: p.category || 'Pantry Staples',
+            category: p.category || "Pantry Staples",
             quantity: p.quantity !== undefined ? p.quantity : 1.0,
-            unit: p.unit || 'pcs',
+            unit: p.unit || "pcs",
             isLowStock: false,
           })),
           skipDuplicates: true,
@@ -110,19 +112,33 @@ export class MealPlansService {
     const legacyMealConfig = mealFrequencyToLegacy(mealFrequency);
     const mealTypes = legacyMealConfig.plannedMealTypes;
     const mealSlots = distributeMealSlots(mealFrequency, daysCount);
-    const targetBudget = dto?.weeklyBudget !== undefined ? dto.weeklyBudget : user.weeklyBudget || 150.0;
-    const adultsCount = dto?.adultsCount !== undefined ? dto.adultsCount : user.adultsCount || 1;
-    const childrenCount = dto?.childrenCount !== undefined ? dto.childrenCount : user.childrenCount || 0;
-    const dietaryRestrictions = dto?.dietaryRestrictions || user.dietaryRestrictions || [];
-    const cuisinePreferences = dto?.cuisinePreferences || user.cuisinePreferences || [];
-    const kitchenEquipment = dto?.kitchenEquipment || user.kitchenEquipment || [];
+    const targetBudget =
+      dto?.weeklyBudget !== undefined
+        ? dto.weeklyBudget
+        : user.weeklyBudget || 150.0;
+    const adultsCount =
+      dto?.adultsCount !== undefined ? dto.adultsCount : user.adultsCount || 1;
+    const childrenCount =
+      dto?.childrenCount !== undefined
+        ? dto.childrenCount
+        : user.childrenCount || 0;
+    const dietaryRestrictions =
+      dto?.dietaryRestrictions || user.dietaryRestrictions || [];
+    const cuisinePreferences =
+      dto?.cuisinePreferences || user.cuisinePreferences || [];
+    const kitchenEquipment =
+      dto?.kitchenEquipment || user.kitchenEquipment || [];
     const pantryStaples = dto?.pantryStaples || user.pantryStaples || [];
     const mealVibes = dto?.mealVibes || user.mealVibes || [];
 
-    const preferredStoreType = dto?.preferredStoreType || user.preferredStoreType || 'STANDARD';
-    const country = dto?.country !== undefined ? dto.country : user.country || 'United Kingdom';
-    const city = dto?.city !== undefined ? dto.city : user.city || 'London';
-    const currency = dto?.currency || user.currency || 'GBP';
+    const preferredStoreType =
+      dto?.preferredStoreType || user.preferredStoreType || "STANDARD";
+    const country =
+      dto?.country !== undefined
+        ? dto.country
+        : user.country || "United Kingdom";
+    const city = dto?.city !== undefined ? dto.city : user.city || "London";
+    const currency = dto?.currency || user.currency || "GBP";
 
     // Optionally update user profile with provided onboarding settings
     if (dto?.saveToProfile) {
@@ -151,7 +167,8 @@ export class MealPlansService {
     }
 
     // Item 2: Compute historical receipt calibration from previous shopping sessions
-    const pricingCalibration = await this.calculateHistoricalCostCalibration(userId);
+    const pricingCalibration =
+      await this.calculateHistoricalCostCalibration(userId);
 
     // Item 3: Compute store and regional price modifier
     const storeMultiplier = this.resolveStoreMultiplier(preferredStoreType);
@@ -163,12 +180,16 @@ export class MealPlansService {
       city: city || undefined,
     };
 
-    let generationType: 'AI_OPENAI' | 'CATALOG_FALLBACK' = 'AI_OPENAI';
+    let generationType: "AI_OPENAI" | "CATALOG_FALLBACK" = "AI_OPENAI";
     let aiOverview: string | undefined;
     let aiTitle: string | undefined;
     let dailyTargetCalories: number | undefined;
 
-    const planItemsData: { mealId: string; dayOfWeek: number; mealType: string }[] = [];
+    const planItemsData: {
+      mealId: string;
+      dayOfWeek: number;
+      mealType: string;
+    }[] = [];
     let totalCost = 0.0;
 
     if (this.openAiService.isAvailable()) {
@@ -221,7 +242,10 @@ export class MealPlansService {
         aiOverview = aiResult.planOverview;
         dailyTargetCalories = aiResult.dailyTargetCalories;
 
-        const alignedMeals = this.alignGeneratedMeals(aiResult.meals, mealSlots);
+        const alignedMeals = this.alignGeneratedMeals(
+          aiResult.meals,
+          mealSlots,
+        );
 
         for (const aiMeal of alignedMeals) {
           const mealRecord = await this.findOrCreateAiMeal(aiMeal);
@@ -236,14 +260,14 @@ export class MealPlansService {
         this.logger.warn(
           `OpenAI plan generation failed (${aiError.message}). Falling back to catalog matching.`,
         );
-        generationType = 'CATALOG_FALLBACK';
+        generationType = "CATALOG_FALLBACK";
       }
     } else {
-      generationType = 'CATALOG_FALLBACK';
+      generationType = "CATALOG_FALLBACK";
     }
 
     // Fallback: rule-based generation using database catalog
-    if (generationType === 'CATALOG_FALLBACK' || planItemsData.length === 0) {
+    if (generationType === "CATALOG_FALLBACK" || planItemsData.length === 0) {
       const fallbackResult = await this.generateFallbackPlanItems(
         mealSlots,
         dto?.dietaryRestrictions || user.dietaryRestrictions,
@@ -269,7 +293,7 @@ export class MealPlansService {
           startDate,
           endDate,
           totalEstimatedCost: Math.round(totalCost * 100) / 100,
-          status: 'ACTIVE',
+          status: "ACTIVE",
           items: {
             create: planItemsData,
           },
@@ -287,7 +311,8 @@ export class MealPlansService {
     return withMealPlanResponse(
       {
         generationType,
-        planTitle: aiTitle || `${mealFrequencyTotal(mealFrequency)}-Meal Weekly Plan`,
+        planTitle:
+          aiTitle || `${mealFrequencyTotal(mealFrequency)}-Meal Weekly Plan`,
         planOverview: aiOverview,
         dailyTargetCalories,
         currency,
@@ -321,11 +346,11 @@ export class MealPlansService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     if (!dto.items || dto.items.length === 0) {
-      throw new BadRequestException('Meal plan must contain at least one item');
+      throw new BadRequestException("Meal plan must contain at least one item");
     }
 
     // Verify meal IDs
@@ -335,10 +360,12 @@ export class MealPlansService {
     });
 
     if (existingMeals.length !== mealIds.length) {
-      throw new BadRequestException('One or more meal IDs are invalid');
+      throw new BadRequestException("One or more meal IDs are invalid");
     }
 
-    const mealCostMap = new Map(existingMeals.map((m) => [m.id, m.estimatedCost]));
+    const mealCostMap = new Map(
+      existingMeals.map((m) => [m.id, m.estimatedCost]),
+    );
     let totalCost = 0.0;
     for (const item of dto.items) {
       totalCost += mealCostMap.get(item.mealId) || 0.0;
@@ -363,7 +390,7 @@ export class MealPlansService {
           startDate,
           endDate,
           totalEstimatedCost: Math.round(totalCost * 100) / 100,
-          status: 'ACTIVE',
+          status: "ACTIVE",
           items: {
             create: dto.items.map((i) => ({
               mealId: i.mealId,
@@ -379,7 +406,7 @@ export class MealPlansService {
     const budgetComparison = buildBudgetComparison(
       user.weeklyBudget,
       totalCost,
-      user.currency || 'USD',
+      user.currency || "USD",
     );
 
     return withMealPlanResponse(
@@ -408,7 +435,7 @@ export class MealPlansService {
         userId,
         status: { in: ACTIVE_MEAL_PLAN_STATUSES },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: MEAL_PLAN_WITH_ITEMS_INCLUDE,
     });
 
@@ -417,12 +444,13 @@ export class MealPlansService {
         hasActivePlan: false,
         mealPlan: null,
         plan: null,
-        message: 'No active meal plan found. Generate a new plan to get started.',
+        message:
+          "No active meal plan found. Generate a new plan to get started.",
       };
     }
 
     const weeklyBudget = user?.weeklyBudget || 150.0;
-    const currency = user?.currency || 'USD';
+    const currency = user?.currency || "USD";
     const budgetComparison = buildBudgetComparison(
       weeklyBudget,
       currentPlan.totalEstimatedCost,
@@ -455,7 +483,7 @@ export class MealPlansService {
         where: { userId },
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           _count: {
             select: { items: true },
@@ -487,13 +515,13 @@ export class MealPlansService {
           include: {
             meal: true,
           },
-          orderBy: [{ dayOfWeek: 'asc' }, { mealType: 'asc' }],
+          orderBy: [{ dayOfWeek: "asc" }, { mealType: "asc" }],
         },
       },
     });
 
     if (!plan || plan.userId !== userId) {
-      throw new NotFoundException('Meal plan not found');
+      throw new NotFoundException("Meal plan not found");
     }
 
     return plan;
@@ -508,14 +536,14 @@ export class MealPlansService {
     });
 
     if (!plan || plan.userId !== userId) {
-      throw new NotFoundException('Meal plan not found');
+      throw new NotFoundException("Meal plan not found");
     }
 
     await this.prisma.mealPlan.delete({
       where: { id: planId },
     });
 
-    return { success: true, message: 'Meal plan deleted successfully' };
+    return { success: true, message: "Meal plan deleted successfully" };
   }
 
   /**
@@ -528,7 +556,7 @@ export class MealPlansService {
     });
 
     if (!item || item.mealPlan.userId !== userId) {
-      throw new NotFoundException('Meal plan item not found');
+      throw new NotFoundException("Meal plan item not found");
     }
 
     let targetMealId = newMealId;
@@ -539,7 +567,8 @@ export class MealPlansService {
         take: 10,
       });
       if (alternatives.length > 0) {
-        targetMealId = alternatives[Math.floor(Math.random() * alternatives.length)].id;
+        targetMealId =
+          alternatives[Math.floor(Math.random() * alternatives.length)].id;
       } else {
         targetMealId = item.mealId;
       }
@@ -556,7 +585,10 @@ export class MealPlansService {
       where: { mealPlanId: item.mealPlanId },
       include: { meal: true },
     });
-    const newTotalCost = allItems.reduce((acc, it) => acc + it.meal.estimatedCost, 0);
+    const newTotalCost = allItems.reduce(
+      (acc, it) => acc + it.meal.estimatedCost,
+      0,
+    );
 
     await this.prisma.mealPlan.update({
       where: { id: item.mealPlanId },
@@ -574,7 +606,7 @@ export class MealPlansService {
       where: {
         title: {
           equals: aiMeal.title.trim(),
-          mode: 'insensitive',
+          mode: "insensitive",
         },
       },
     });
@@ -590,10 +622,16 @@ export class MealPlansService {
         prepTimeMinutes: Number(aiMeal.prepTimeMinutes) || 20,
         servings: Number(aiMeal.servings) || 2,
         estimatedCost: Number(aiMeal.estimatedCost) || 12.0,
-        cuisine: aiMeal.cuisine || 'American',
-        dietaryTags: Array.isArray(aiMeal.dietaryTags) ? aiMeal.dietaryTags : [],
-        instructions: Array.isArray(aiMeal.instructions) ? aiMeal.instructions : [],
-        ingredients: Array.isArray(aiMeal.ingredients) ? (aiMeal.ingredients as any) : [],
+        cuisine: aiMeal.cuisine || "American",
+        dietaryTags: Array.isArray(aiMeal.dietaryTags)
+          ? aiMeal.dietaryTags
+          : [],
+        instructions: Array.isArray(aiMeal.instructions)
+          ? aiMeal.instructions
+          : [],
+        ingredients: Array.isArray(aiMeal.ingredients)
+          ? (aiMeal.ingredients as any)
+          : [],
       },
     });
   }
@@ -603,14 +641,14 @@ export class MealPlansService {
    */
   private async archiveActiveMealPlans(
     userId: string,
-    tx: Pick<PrismaService, 'mealPlan'> = this.prisma,
+    tx: Pick<PrismaService, "mealPlan"> = this.prisma,
   ): Promise<number> {
     const result = await tx.mealPlan.updateMany({
       where: {
         userId,
         status: { in: ACTIVE_MEAL_PLAN_STATUSES },
       },
-      data: { status: 'ARCHIVED' },
+      data: { status: "ARCHIVED" },
     });
 
     if (result.count > 0) {
@@ -625,7 +663,10 @@ export class MealPlansService {
   /**
    * Aligns AI meals to required slots, enforcing exact per-type counts.
    */
-  private alignGeneratedMeals(aiMeals: AiPlanMeal[], mealSlots: MealSlot[]): AiPlanMeal[] {
+  private alignGeneratedMeals(
+    aiMeals: AiPlanMeal[],
+    mealSlots: MealSlot[],
+  ): AiPlanMeal[] {
     if (mealSlots.length === 0) {
       return aiMeals;
     }
@@ -638,7 +679,7 @@ export class MealPlansService {
     const unassigned: AiPlanMeal[] = [];
 
     for (const meal of aiMeals) {
-      const normalized = (meal.mealType || '').trim().toUpperCase();
+      const normalized = (meal.mealType || "").trim().toUpperCase();
       if (normalized in mealsByType) {
         mealsByType[normalized].push(meal);
       } else {
@@ -700,7 +741,7 @@ export class MealPlansService {
           cuisinePreferences.length > 0
             ? {
                 OR: cuisinePreferences.map((cuisine) => ({
-                  cuisine: { equals: cuisine, mode: 'insensitive' as const },
+                  cuisine: { equals: cuisine, mode: "insensitive" as const },
                 })),
               }
             : {},
@@ -726,24 +767,29 @@ export class MealPlansService {
       // Seed default fallback meal if catalog is completely empty
       const defaultMeal = await this.prisma.meal.create({
         data: {
-          title: 'Mediterranean Veggie & Quinoa Bowl',
-          description: 'Nutritious roasted vegetables and fluffy quinoa with lemon herb dressing',
+          title: "Mediterranean Veggie & Quinoa Bowl",
+          description:
+            "Nutritious roasted vegetables and fluffy quinoa with lemon herb dressing",
           prepTimeMinutes: 20,
           servings: 2,
           estimatedCost: 8.5,
-          cuisine: 'Mediterranean',
-          dietaryTags: ['VEGETARIAN', 'HIGH_PROTEIN', 'GLUTEN_FREE'],
+          cuisine: "Mediterranean",
+          dietaryTags: ["VEGETARIAN", "HIGH_PROTEIN", "GLUTEN_FREE"],
           instructions: [
-            'Cook quinoa in salted water for 15 minutes.',
-            'Roast diced vegetables with olive oil, oregano, salt, and pepper.',
-            'Assemble bowl with quinoa, roasted veggies, and lemon dressing.',
+            "Cook quinoa in salted water for 15 minutes.",
+            "Roast diced vegetables with olive oil, oregano, salt, and pepper.",
+            "Assemble bowl with quinoa, roasted veggies, and lemon dressing.",
           ],
           ingredients: [
-            { name: 'Quinoa', quantity: '150g', category: 'Grains' },
-            { name: 'Zucchini', quantity: '1 medium', category: 'Produce' },
-            { name: 'Bell pepper', quantity: '1 pc', category: 'Produce' },
-            { name: 'Olive oil', quantity: '2 tbsp', category: 'Pantry Staples' },
-            { name: 'Lemon', quantity: '1 pc', category: 'Produce' },
+            { name: "Quinoa", quantity: "150g", category: "Grains" },
+            { name: "Zucchini", quantity: "1 medium", category: "Produce" },
+            { name: "Bell pepper", quantity: "1 pc", category: "Produce" },
+            {
+              name: "Olive oil",
+              quantity: "2 tbsp",
+              category: "Pantry Staples",
+            },
+            { name: "Lemon", quantity: "1 pc", category: "Produce" },
           ],
         },
       });
@@ -794,7 +840,7 @@ export class MealPlansService {
         actualCost: { not: null, gt: 0 },
         totalEstimatedCost: { gt: 0 },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: 5,
     });
 
@@ -803,19 +849,26 @@ export class MealPlansService {
         factor: 1.0,
         sampleCount: 0,
         averageDelta: 0.0,
-        message: 'Standard baseline pricing (no previous receipt history logged yet).',
+        message:
+          "Standard baseline pricing (no previous receipt history logged yet).",
       };
     }
 
-    const sumActual = historicalPlans.reduce((acc, p) => acc + (p.actualCost || 0), 0);
-    const sumEstimated = historicalPlans.reduce((acc, p) => acc + p.totalEstimatedCost, 0);
+    const sumActual = historicalPlans.reduce(
+      (acc, p) => acc + (p.actualCost || 0),
+      0,
+    );
+    const sumEstimated = historicalPlans.reduce(
+      (acc, p) => acc + p.totalEstimatedCost,
+      0,
+    );
 
     if (sumEstimated === 0) {
       return {
         factor: 1.0,
         sampleCount: historicalPlans.length,
         averageDelta: 0.0,
-        message: 'Standard baseline pricing.',
+        message: "Standard baseline pricing.",
       };
     }
 
@@ -823,9 +876,12 @@ export class MealPlansService {
     // Clamp to safe boundaries (0.65x to 1.50x) to avoid extreme runaway outliers
     rawFactor = Math.max(0.65, Math.min(1.5, rawFactor));
     const factor = Math.round(rawFactor * 100) / 100;
-    const avgDelta = Math.round(((sumActual - sumEstimated) / historicalPlans.length) * 100) / 100;
+    const avgDelta =
+      Math.round(((sumActual - sumEstimated) / historicalPlans.length) * 100) /
+      100;
     const deltaPercent = Math.round((factor - 1) * 100);
-    const directionText = deltaPercent >= 0 ? `+${deltaPercent}%` : `${deltaPercent}%`;
+    const directionText =
+      deltaPercent >= 0 ? `+${deltaPercent}%` : `${deltaPercent}%`;
 
     return {
       factor,
@@ -840,33 +896,36 @@ export class MealPlansService {
    */
   resolveStoreMultiplier(storeType?: string): number {
     if (!storeType) return 1.0;
-    const normalized = storeType.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const normalized = storeType
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
 
     if (
-      normalized.includes('DISCOUNT') ||
-      normalized.includes('ALDI') ||
-      normalized.includes('LIDL') ||
-      normalized.includes('WALMART') ||
-      normalized.includes('COSTCO') ||
-      normalized.includes('WINCO')
+      normalized.includes("DISCOUNT") ||
+      normalized.includes("ALDI") ||
+      normalized.includes("LIDL") ||
+      normalized.includes("WALMART") ||
+      normalized.includes("COSTCO") ||
+      normalized.includes("WINCO")
     ) {
       return 0.82;
     }
 
     if (
-      normalized.includes('PREMIUM') ||
-      normalized.includes('ORGANIC') ||
-      normalized.includes('WHOLEFOODS') ||
-      normalized.includes('SPROUTS') ||
-      normalized.includes('EREWHON') ||
-      normalized.includes('MARKSANDSPENCER') ||
-      normalized.includes('MS') ||
-      normalized.includes('WAITROSE')
+      normalized.includes("PREMIUM") ||
+      normalized.includes("ORGANIC") ||
+      normalized.includes("WHOLEFOODS") ||
+      normalized.includes("SPROUTS") ||
+      normalized.includes("EREWHON") ||
+      normalized.includes("MARKSANDSPENCER") ||
+      normalized.includes("MS") ||
+      normalized.includes("WAITROSE")
     ) {
-      return 1.30;
+      return 1.3;
     }
 
-    if (normalized.includes('TRADERJOE') || normalized.includes('TRADERJOES')) {
+    if (normalized.includes("TRADERJOE") || normalized.includes("TRADERJOES")) {
       return 0.95;
     }
 
@@ -887,7 +946,7 @@ export class MealPlansService {
     });
 
     if (!item || item.mealPlan.userId !== userId) {
-      throw new NotFoundException('Meal plan item not found');
+      throw new NotFoundException("Meal plan item not found");
     }
 
     const data: any = {};
@@ -945,7 +1004,7 @@ export class MealPlansService {
     });
 
     if (!item || item.mealPlan.userId !== userId) {
-      throw new NotFoundException('Meal plan item not found');
+      throw new NotFoundException("Meal plan item not found");
     }
 
     await this.prisma.mealPlanItem.delete({
@@ -970,10 +1029,9 @@ export class MealPlansService {
 
     return {
       success: true,
-      message: 'Meal plan item removed successfully',
+      message: "Meal plan item removed successfully",
       remainingItemsCount: remainingItems.length,
       newTotalEstimatedCost: Math.round(newTotalCost * 100) / 100,
     };
   }
 }
-

@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsString,
   IsNotEmpty,
@@ -6,47 +6,63 @@ import {
   IsOptional,
   IsArray,
   Min,
-} from 'class-validator';
+} from "class-validator";
 
 export class CreateAdminMealDto {
-  @ApiProperty({ example: 'Grilled Lemon Herb Salmon', description: 'Recipe title' })
+  @ApiProperty({
+    example: "Grilled Lemon Herb Salmon",
+    description: "Recipe title",
+  })
   @IsString()
-  @IsNotEmpty({ message: 'Recipe title is required' })
+  @IsNotEmpty({ message: "Recipe title is required" })
   title: string;
 
   @ApiPropertyOptional({
-    example: 'Fresh salmon fillets marinated with rosemary, garlic, and freshly squeezed lemon',
-    description: 'Recipe description',
+    example:
+      "Fresh salmon fillets marinated with rosemary, garlic, and freshly squeezed lemon",
+    description: "Recipe description",
   })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ example: 20, default: 15, description: 'Prep time in minutes' })
+  @ApiPropertyOptional({
+    example: 20,
+    default: 15,
+    description: "Prep time in minutes",
+  })
   @IsOptional()
   @IsNumber()
   @Min(1)
   prepTimeMinutes?: number;
 
-  @ApiPropertyOptional({ example: 4, default: 4, description: 'Servings yield' })
+  @ApiPropertyOptional({
+    example: 4,
+    default: 4,
+    description: "Servings yield",
+  })
   @IsOptional()
   @IsNumber()
   @Min(1)
   servings?: number;
 
-  @ApiPropertyOptional({ example: 22.5, default: 15.0, description: 'Estimated ingredient cost' })
+  @ApiPropertyOptional({
+    example: 22.5,
+    default: 15.0,
+    description: "Estimated ingredient cost",
+  })
   @IsOptional()
   @IsNumber()
   @Min(0)
   estimatedCost?: number;
 
-  @ApiPropertyOptional({ example: 'Mediterranean', default: 'American' })
+  @ApiPropertyOptional({ example: "Mediterranean", default: "American" })
   @IsOptional()
   @IsString()
   cuisine?: string;
 
   @ApiPropertyOptional({
-    example: ['HIGH_PROTEIN', 'GLUTEN_FREE', 'PESCATARIAN'],
+    example: ["HIGH_PROTEIN", "GLUTEN_FREE", "PESCATARIAN"],
     type: [String],
   })
   @IsOptional()
@@ -56,9 +72,9 @@ export class CreateAdminMealDto {
 
   @ApiPropertyOptional({
     example: [
-      'Preheat skillet with olive oil',
-      'Season salmon with herbs, salt, and pepper',
-      'Sear for 4-5 mins each side',
+      "Preheat skillet with olive oil",
+      "Season salmon with herbs, salt, and pepper",
+      "Sear for 4-5 mins each side",
     ],
     type: [String],
   })
@@ -69,8 +85,13 @@ export class CreateAdminMealDto {
 
   @ApiPropertyOptional({
     example: [
-      { name: 'Salmon Fillet', category: 'Meat & Fish', quantity: '500g', unit: 'g' },
-      { name: 'Lemon', category: 'Produce', quantity: '1 pc', unit: 'pcs' },
+      {
+        name: "Salmon Fillet",
+        category: "Meat & Fish",
+        quantity: "500g",
+        unit: "g",
+      },
+      { name: "Lemon", category: "Produce", quantity: "1 pc", unit: "pcs" },
     ],
     type: [Object],
   })
@@ -78,19 +99,19 @@ export class CreateAdminMealDto {
   @IsArray()
   ingredients?: any[];
 
-  @ApiPropertyOptional({ example: 'Dinner', default: 'Dinner' })
+  @ApiPropertyOptional({ example: "Dinner", default: "Dinner" })
   @IsOptional()
   @IsString()
   mealType?: string;
 
-  @ApiPropertyOptional({ example: 'Active', default: 'Active' })
+  @ApiPropertyOptional({ example: "Active", default: "Active" })
   @IsOptional()
   @IsString()
   status?: string;
 
   @ApiPropertyOptional({
-    example: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288',
-    description: 'Image URL',
+    example: "https://images.unsplash.com/photo-1467003909585-2f8a72700288",
+    description: "Image URL",
   })
   @IsOptional()
   @IsString()
@@ -98,12 +119,12 @@ export class CreateAdminMealDto {
 }
 
 export class UpdateAdminMealDto {
-  @ApiPropertyOptional({ example: 'Grilled Herb Salmon & Asparagus' })
+  @ApiPropertyOptional({ example: "Grilled Herb Salmon & Asparagus" })
   @IsOptional()
   @IsString()
   title?: string;
 
-  @ApiPropertyOptional({ example: 'Updated description' })
+  @ApiPropertyOptional({ example: "Updated description" })
   @IsOptional()
   @IsString()
   description?: string;
@@ -126,17 +147,17 @@ export class UpdateAdminMealDto {
   @Min(0)
   estimatedCost?: number;
 
-  @ApiPropertyOptional({ example: 'Mediterranean' })
+  @ApiPropertyOptional({ example: "Mediterranean" })
   @IsOptional()
   @IsString()
   cuisine?: string;
 
-  @ApiPropertyOptional({ example: 'Dinner' })
+  @ApiPropertyOptional({ example: "Dinner" })
   @IsOptional()
   @IsString()
   mealType?: string;
 
-  @ApiPropertyOptional({ example: 'Active' })
+  @ApiPropertyOptional({ example: "Active" })
   @IsOptional()
   @IsString()
   status?: string;
@@ -158,7 +179,7 @@ export class UpdateAdminMealDto {
   @IsArray()
   ingredients?: any[];
 
-  @ApiPropertyOptional({ example: 'https://images.unsplash.com/photo-sample' })
+  @ApiPropertyOptional({ example: "https://images.unsplash.com/photo-sample" })
   @IsOptional()
   @IsString()
   imageUrl?: string;
