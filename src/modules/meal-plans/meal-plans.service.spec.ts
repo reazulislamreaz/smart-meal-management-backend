@@ -3,6 +3,7 @@ import { BadRequestException } from "@nestjs/common";
 import { MealPlansService } from "./meal-plans.service";
 import { PrismaService } from "@/database/prisma.service";
 import { OpenAiService } from "../ai/openai.service";
+import { NutritionService } from "../meals/nutrition.service";
 
 describe("MealPlansService", () => {
   let service: MealPlansService;
@@ -174,6 +175,7 @@ describe("MealPlansService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MealPlansService,
+        NutritionService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: OpenAiService, useValue: mockOpenAiService },
       ],
@@ -436,5 +438,66 @@ describe("MealPlansService", () => {
     });
     expect(result.success).toBe(true);
     expect(result.newTotalEstimatedCost).toBe(20.0);
+  });
+
+  it("should enforce distinct non-repetitive meals across days in fallback generation", async () => {
+    mockPrismaService.meal.findMany.mockImplementation((args?: any) => {
+      return Promise.resolve([
+        {
+          id: "m-1",
+          title: "Avocado Toast",
+          mealType: "BREAKFAST",
+          estimatedCost: 5.0,
+        },
+        {
+          id: "m-2",
+          title: "Greek Yogurt Bowl",
+          mealType: "BREAKFAST",
+          estimatedCost: 4.5,
+        },
+        {
+          id: "m-3",
+          title: "Shakshuka",
+          mealType: "BREAKFAST",
+          estimatedCost: 6.0,
+        },
+        {
+          id: "m-4",
+          title: "Chicken Wrap",
+          mealType: "LUNCH",
+          estimatedCost: 8.0,
+        },
+        {
+          id: "m-5",
+          title: "Salmon Quinoa",
+          mealType: "LUNCH",
+          estimatedCost: 10.0,
+        },
+        {
+          id: "m-6",
+          title: "Tuscan Pasta",
+          mealType: "DINNER",
+          estimatedCost: 12.0,
+        },
+        {
+          id: "m-7",
+          title: "Beef Stir Fry",
+          mealType: "DINNER",
+          estimatedCost: 14.0,
+        },
+      ]);
+    });
+
+    const slots = [
+      { dayOfWeek: 1, mealType: "BREAKFAST" as const },
+      { dayOfWeek: 2, mealType: "BREAKFAST" as const },
+      { dayOfWeek: 3, mealType: "BREAKFAST" as const },
+    ];
+
+    const result = await (service as any).generateFallbackPlanItems(slots);
+    const generatedIds = result.items.map((it: any) => it.mealId);
+    const uniqueIds = new Set(generatedIds);
+
+    expect(uniqueIds.size).toBe(slots.length);
   });
 });

@@ -1,18 +1,20 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsBoolean,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   Min,
 } from "class-validator";
 
-export class CreatePantryItemDto {
-  @ApiProperty({ example: "Chickpeas", description: "Ingredient or item name" })
+export class UpdatePantryItemDto {
+  @ApiPropertyOptional({
+    example: "Chickpeas",
+    description: "Ingredient or item name",
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  ingredientName: string;
+  ingredientName?: string;
 
   @ApiPropertyOptional({
     example: "Pantry",
@@ -44,8 +46,7 @@ export class CreatePantryItemDto {
 
   @ApiPropertyOptional({
     example: "2027-01-01T00:00:00.000Z",
-    description:
-      "Optional expiry date (ISO date string or empty/omitted if no expiration)",
+    description: "Optional expiry date (ISO date string or empty/null)",
     required: false,
     nullable: true,
   })

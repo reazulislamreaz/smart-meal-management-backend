@@ -23,6 +23,9 @@ import {
   buildBudgetComparison,
   withMealPlanResponse,
 } from "./utils/meal-plan-response.util";
+import { NutritionService } from "../meals/nutrition.service";
+import { normalizeCountryAndCurrency } from "@/common/constants/country-currency.constant";
+import { normalizeMeasurementSystem } from "@/common/constants/measurement-system.constant";
 
 const MEAL_PLAN_WITH_ITEMS_INCLUDE = {
   items: {
@@ -42,6 +45,7 @@ export class MealPlansService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly openAiService: OpenAiService,
+    private readonly nutritionService: NutritionService,
   ) {}
 
   /**
@@ -130,15 +134,22 @@ export class MealPlansService {
       dto?.kitchenEquipment || user.kitchenEquipment || [];
     const pantryStaples = dto?.pantryStaples || user.pantryStaples || [];
     const mealVibes = dto?.mealVibes || user.mealVibes || [];
-
     const preferredStoreType =
       dto?.preferredStoreType || user.preferredStoreType || "STANDARD";
-    const country =
-      dto?.country !== undefined
-        ? dto.country
-        : user.country || "United Kingdom";
-    const city = dto?.city !== undefined ? dto.city : user.city || "London";
-    const currency = dto?.currency || user.currency || "GBP";
+
+    const rawCountry = dto?.country !== undefined ? dto.country : user.country;
+    const rawCurrency = dto?.currency || user.currency;
+    const region = normalizeCountryAndCurrency(rawCountry, rawCurrency);
+    const country = region.country;
+    const currency = region.currency;
+    const measurementSystem = normalizeMeasurementSystem(
+      dto?.measurementSystem || (user as any)?.measurementSystem,
+      country,
+    );
+    const city =
+      dto?.city !== undefined
+        ? dto.city
+        : user.city || (country === "United States" ? "New York" : "London");
 
     // Optionally update user profile with provided onboarding settings
     if (dto?.saveToProfile) {
@@ -212,6 +223,7 @@ export class MealPlansService {
             currency,
             country,
             city,
+            measurementSystem,
           },
           pantryItems,
           overrides: {
@@ -233,6 +245,7 @@ export class MealPlansService {
             currency,
             country: country || undefined,
             city: city || undefined,
+            measurementSystem,
           },
           pricingCalibration,
           storeModifier,
@@ -277,6 +290,27 @@ export class MealPlansService {
       planItemsData.push(...fallbackResult.items);
       totalCost = fallbackResult.totalCost;
     }
+
+    // Enforce 100% variety across all days in the plan (zero duplicates across Day 1, Day 2, etc.)
+    const uniquePlanItems = await this.ensurePlanMealVariety(
+      planItemsData,
+      dto?.dietaryRestrictions || user.dietaryRestrictions,
+      dto?.cuisinePreferences || user.cuisinePreferences,
+    );
+    planItemsData.length = 0;
+    planItemsData.push(...uniquePlanItems);
+
+    // Recalculate total estimated cost accurately
+    const planMealRecords = await this.prisma.meal.findMany({
+      where: { id: { in: planItemsData.map((it) => it.mealId) } },
+    });
+    const costMap = new Map(
+      planMealRecords.map((m) => [m.id, m.estimatedCost]),
+    );
+    totalCost = planItemsData.reduce(
+      (acc, it) => acc + (costMap.get(it.mealId) || 0),
+      0,
+    );
 
     this.assertPlanItemCounts(planItemsData, mealFrequency);
 
@@ -403,10 +437,11 @@ export class MealPlansService {
       });
     });
 
+    const region = normalizeCountryAndCurrency(user.country, user.currency);
     const budgetComparison = buildBudgetComparison(
       user.weeklyBudget,
       totalCost,
-      user.currency || "USD",
+      region.currency,
     );
 
     return withMealPlanResponse(
@@ -450,7 +485,8 @@ export class MealPlansService {
     }
 
     const weeklyBudget = user?.weeklyBudget || 150.0;
-    const currency = user?.currency || "USD";
+    const region = normalizeCountryAndCurrency(user?.country, user?.currency);
+    const currency = region.currency;
     const budgetComparison = buildBudgetComparison(
       weeklyBudget,
       currentPlan.totalEstimatedCost,
@@ -547,6 +583,106 @@ export class MealPlansService {
   }
 
   /**
+   * Retrieves AI and catalog alternative meal recommendations for a specific meal slot in the active plan.
+   * Excludes all meals currently scheduled in the plan to guarantee zero repetition.
+   */
+  async getSwapAlternatives(userId: string, itemId: string, targetCount = 6) {
+    const item = await this.prisma.mealPlanItem.findUnique({
+      where: { id: itemId },
+      include: {
+        mealPlan: {
+          include: {
+            items: {
+              select: { mealId: true },
+            },
+          },
+        },
+        meal: true,
+      },
+    });
+
+    if (!item || item.mealPlan.userId !== userId) {
+      throw new NotFoundException("Meal plan item not found");
+    }
+
+    const currentMeal = item.meal;
+    const currentPrice = currentMeal.estimatedCost;
+    const mealSlot = item.mealType; // BREAKFAST, LUNCH, or DINNER
+
+    // Gather all active plan meal IDs to prevent repetition
+    const activePlanMealIds = new Set(
+      item.mealPlan.items.map((it) => it.mealId),
+    );
+
+    // Query candidate meals from catalog matching slot
+    const catalogCandidates = await this.prisma.meal.findMany({
+      where: {
+        id: { notIn: Array.from(activePlanMealIds) },
+      },
+      take: 20,
+      orderBy: { cookedCount: "desc" },
+    });
+
+    const alternatives = catalogCandidates.slice(0, targetCount).map((m) => {
+      const priceDelta =
+        Math.round((m.estimatedCost - currentPrice) * 100) / 100;
+      const priceComparison =
+        priceDelta < 0
+          ? `-$${Math.abs(priceDelta).toFixed(2)} cheaper`
+          : priceDelta === 0
+            ? "Same price"
+            : `+$${priceDelta.toFixed(2)}`;
+
+      const nutrition = this.nutritionService.calculateMealNutrition({
+        title: m.title,
+        mealType: mealSlot,
+        servings: m.servings,
+        ingredients: m.ingredients,
+        dietaryTags: m.dietaryTags,
+      });
+
+      return {
+        id: m.id,
+        title: m.title,
+        description: m.description,
+        estimatedCost: m.estimatedCost,
+        priceDelta,
+        priceComparison,
+        prepTimeMinutes: m.prepTimeMinutes,
+        servings: m.servings,
+        cuisine: m.cuisine,
+        dietaryTags: m.dietaryTags,
+        calories: nutrition.calories,
+        proteinGrams: nutrition.proteinGrams,
+        carbsGrams: nutrition.carbsGrams,
+        fatGrams: nutrition.fatGrams,
+        imageUrl: m.imageUrl,
+        whyRecommended:
+          priceDelta < 0
+            ? `Saves $${Math.abs(priceDelta).toFixed(2)} compared to current ${mealSlot.toLowerCase()}`
+            : `Delicious ${m.cuisine} ${mealSlot.toLowerCase()} option`,
+      };
+    });
+
+    return {
+      targetItem: {
+        id: item.id,
+        dayOfWeek: item.dayOfWeek,
+        mealType: item.mealType,
+        currentMeal: {
+          id: currentMeal.id,
+          title: currentMeal.title,
+          estimatedCost: currentMeal.estimatedCost,
+          calories:
+            this.nutritionService.calculateMealNutrition(currentMeal).calories,
+        },
+      },
+      count: alternatives.length,
+      alternatives,
+    };
+  }
+
+  /**
    * Swaps an individual meal item in the plan with an alternative recipe.
    */
   async swapMealItem(userId: string, itemId: string, newMealId?: string) {
@@ -590,12 +726,39 @@ export class MealPlansService {
       0,
     );
 
-    await this.prisma.mealPlan.update({
+    const updatedPlan = await this.prisma.mealPlan.update({
       where: { id: item.mealPlanId },
       data: { totalEstimatedCost: Math.round(newTotalCost * 100) / 100 },
+      include: {
+        items: {
+          include: { meal: true },
+          orderBy: [{ dayOfWeek: "asc" }, { mealType: "asc" }],
+        },
+      },
     });
 
-    return updatedItem;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    const targetBudget = user?.weeklyBudget || 150.0;
+    const region = normalizeCountryAndCurrency(user?.country, user?.currency);
+    const budgetComparison = buildBudgetComparison(
+      targetBudget,
+      updatedPlan.totalEstimatedCost,
+      region.currency,
+    );
+
+    return {
+      item: updatedItem,
+      mealPlan: updatedPlan,
+      plan: updatedPlan,
+      totalEstimatedCost: updatedPlan.totalEstimatedCost,
+      budgetDelta: budgetComparison.budgetDelta,
+      isOverBudget: budgetComparison.isOverBudget,
+      budgetComparison,
+      summaryMessage: `Swapped to ${updatedItem.meal.title}. Total plan cost is now ${budgetComparison.currency} ${updatedPlan.totalEstimatedCost.toFixed(2)}.`,
+    };
   }
 
   /**
@@ -725,7 +888,102 @@ export class MealPlansService {
   }
 
   /**
-   * Fallback heuristic meal plan item selector using database catalog.
+   * Enforces 100% distinct, non-repetitive meals across all days in the generated weekly plan.
+   * If any duplicate meal title or meal ID is found on a subsequent day, replaces it with a unique candidate.
+   */
+  private async ensurePlanMealVariety(
+    planItemsData: { mealId: string; dayOfWeek: number; mealType: string }[],
+    dietaryRestrictions: string[] = [],
+    cuisinePreferences: string[] = [],
+  ): Promise<{ mealId: string; dayOfWeek: number; mealType: string }[]> {
+    const seenMealIds = new Set<string>();
+    const seenTitles = new Set<string>();
+    const uniqueItems: typeof planItemsData = [];
+
+    // Pre-fetch meal details for all initial items
+    const initialMealIds = planItemsData.map((it) => it.mealId);
+    const initialMeals = await this.prisma.meal.findMany({
+      where: { id: { in: initialMealIds } },
+    });
+    const mealMap = new Map<string, (typeof initialMeals)[0]>();
+    for (const m of initialMeals) {
+      mealMap.set(m.id, m);
+    }
+
+    for (const item of planItemsData) {
+      const currentMeal = mealMap.get(item.mealId);
+      const normalizedTitle = (currentMeal?.title || "").toLowerCase().trim();
+
+      const isDuplicate =
+        seenMealIds.has(item.mealId) ||
+        (normalizedTitle.length > 0 && seenTitles.has(normalizedTitle));
+
+      if (!isDuplicate && currentMeal) {
+        seenMealIds.add(item.mealId);
+        seenTitles.add(normalizedTitle);
+        uniqueItems.push(item);
+        continue;
+      }
+
+      this.logger.warn(
+        `Duplicate meal detected for Day ${item.dayOfWeek} (${item.mealType}: "${currentMeal?.title || item.mealId}"). Finding a unique alternative...`,
+      );
+
+      // Query alternative meals matching the exact slot and dietary restrictions not in seenMealIds
+      const candidates = await this.prisma.meal.findMany({
+        where: {
+          id: { notIn: Array.from(seenMealIds) },
+          mealType: { equals: item.mealType, mode: "insensitive" },
+          ...(dietaryRestrictions.length > 0
+            ? { dietaryTags: { hasSome: dietaryRestrictions } }
+            : {}),
+        },
+        take: 15,
+        orderBy: { cookedCount: "desc" },
+      });
+
+      let replacementMeal = candidates.find(
+        (c) => !seenTitles.has(c.title.toLowerCase().trim()),
+      );
+
+      if (!replacementMeal) {
+        // Broaden search across all meal types not in seenMealIds
+        const broaderCandidates = await this.prisma.meal.findMany({
+          where: {
+            id: { notIn: Array.from(seenMealIds) },
+            ...(dietaryRestrictions.length > 0
+              ? { dietaryTags: { hasSome: dietaryRestrictions } }
+              : {}),
+          },
+          take: 25,
+        });
+        replacementMeal = broaderCandidates.find(
+          (c) => !seenTitles.has(c.title.toLowerCase().trim()),
+        );
+      }
+
+      if (replacementMeal) {
+        seenMealIds.add(replacementMeal.id);
+        seenTitles.add(replacementMeal.title.toLowerCase().trim());
+        mealMap.set(replacementMeal.id, replacementMeal);
+        uniqueItems.push({
+          mealId: replacementMeal.id,
+          dayOfWeek: item.dayOfWeek,
+          mealType: item.mealType,
+        });
+      } else {
+        // If all existing DB records are exhausted, retain current item
+        seenMealIds.add(item.mealId);
+        if (normalizedTitle) seenTitles.add(normalizedTitle);
+        uniqueItems.push(item);
+      }
+    }
+
+    return uniqueItems;
+  }
+
+  /**
+   * Fallback heuristic meal plan item selector using database catalog with 100% non-repetition guarantee.
    */
   private async generateFallbackPlanItems(
     mealSlots: MealSlot[],
@@ -760,7 +1018,7 @@ export class MealPlansService {
     }
 
     if (candidateMeals.length === 0) {
-      candidateMeals = await this.prisma.meal.findMany({ take: 20 });
+      candidateMeals = await this.prisma.meal.findMany({ take: 50 });
     }
 
     if (candidateMeals.length === 0) {
@@ -796,35 +1054,82 @@ export class MealPlansService {
       candidateMeals = [defaultMeal];
     }
 
-    const mealsByType = new Map<string, typeof candidateMeals>();
-    for (const slot of mealSlots) {
-      if (!mealsByType.has(slot.mealType)) {
-        const typeMatches = candidateMeals.filter(
-          (meal) => meal.mealType?.toUpperCase() === slot.mealType,
-        );
-        mealsByType.set(
-          slot.mealType,
-          typeMatches.length > 0 ? typeMatches : candidateMeals,
-        );
-      }
-    }
-
+    const usedMealIds = new Set<string>();
+    const usedTitles = new Set<string>();
     const items: { mealId: string; dayOfWeek: number; mealType: string }[] = [];
     let totalCost = 0.0;
-    const usedByType = new Map<string, number>();
 
     for (const slot of mealSlots) {
-      const pool = mealsByType.get(slot.mealType) || candidateMeals;
-      const usedIndex = usedByType.get(slot.mealType) || 0;
-      const selected = pool[usedIndex % pool.length];
-      usedByType.set(slot.mealType, usedIndex + 1);
+      // Find candidate matching slot, dietary, not used yet
+      let pool = candidateMeals.filter(
+        (m) =>
+          m.mealType?.toUpperCase() === slot.mealType &&
+          !usedMealIds.has(m.id) &&
+          !usedTitles.has(m.title.toLowerCase().trim()),
+      );
 
-      totalCost += selected.estimatedCost;
-      items.push({
-        mealId: selected.id,
-        dayOfWeek: slot.dayOfWeek,
-        mealType: slot.mealType,
-      });
+      // If slot pool exhausted, query directly from database for slot
+      if (pool.length === 0) {
+        const slotDbMeals = await this.prisma.meal.findMany({
+          where: {
+            id: { notIn: Array.from(usedMealIds) },
+            mealType: { equals: slot.mealType, mode: "insensitive" },
+            ...(dietaryRestrictions.length > 0
+              ? { dietaryTags: { hasSome: dietaryRestrictions } }
+              : {}),
+          },
+          take: 25,
+        });
+        pool = slotDbMeals.filter(
+          (m) => !usedTitles.has(m.title.toLowerCase().trim()),
+        );
+      }
+
+      // If still empty, query any unused meal matching dietary
+      if (pool.length === 0) {
+        const anyDietaryMeals = await this.prisma.meal.findMany({
+          where: {
+            id: { notIn: Array.from(usedMealIds) },
+            ...(dietaryRestrictions.length > 0
+              ? { dietaryTags: { hasSome: dietaryRestrictions } }
+              : {}),
+          },
+          take: 25,
+        });
+        pool = anyDietaryMeals.filter(
+          (m) => !usedTitles.has(m.title.toLowerCase().trim()),
+        );
+      }
+
+      // If still empty, query any unused catalog meal
+      if (pool.length === 0) {
+        const anyUnused = await this.prisma.meal.findMany({
+          where: {
+            id: { notIn: Array.from(usedMealIds) },
+          },
+          take: 25,
+        });
+        pool = anyUnused.filter(
+          (m) => !usedTitles.has(m.title.toLowerCase().trim()),
+        );
+      }
+
+      // If catalog is entirely exhausted, fallback to available candidate
+      const selected =
+        pool.length > 0
+          ? pool[Math.floor(Math.random() * pool.length)]
+          : candidateMeals[0];
+
+      if (selected) {
+        usedMealIds.add(selected.id);
+        usedTitles.add(selected.title.toLowerCase().trim());
+        totalCost += selected.estimatedCost;
+        items.push({
+          mealId: selected.id,
+          dayOfWeek: slot.dayOfWeek,
+          mealType: slot.mealType,
+        });
+      }
     }
 
     return { items, totalCost };

@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '@/database/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "@/database/prisma.service";
 
 @Injectable()
 export class ShoppingListService {
@@ -10,7 +10,7 @@ export class ShoppingListService {
     const activePlan = await this.prisma.mealPlan.findFirst({
       where: {
         userId,
-        status: { in: ['ACTIVE', 'Active', 'active'] },
+        status: { in: ["ACTIVE", "Active", "active"] },
       },
       include: {
         items: {
@@ -31,16 +31,24 @@ export class ShoppingListService {
     );
 
     // Default required items if no plan items present yet
-    const rawRequiredIngredients: { name: string; category: string; quantity: string }[] = [];
+    const rawRequiredIngredients: {
+      name: string;
+      category: string;
+      quantity: string;
+    }[] = [];
 
     if (activePlan && activePlan.items.length > 0) {
       for (const item of activePlan.items) {
         const ingredients = (item.meal.ingredients as any[]) || [];
         for (const ing of ingredients) {
           rawRequiredIngredients.push({
-            name: typeof ing === 'string' ? ing : ing.name || 'Ingredient',
-            category: typeof ing === 'object' && ing.category ? ing.category : 'Pantry Staples',
-            quantity: typeof ing === 'object' && ing.quantity ? ing.quantity : '1 unit',
+            name: typeof ing === "string" ? ing : ing.name || "Ingredient",
+            category:
+              typeof ing === "object" && ing.category
+                ? ing.category
+                : "Pantry Staples",
+            quantity:
+              typeof ing === "object" && ing.quantity ? ing.quantity : "1 unit",
           });
         }
       }
@@ -49,18 +57,25 @@ export class ShoppingListService {
     if (rawRequiredIngredients.length === 0) {
       // Demo fallback set if plan has no ingredients yet
       rawRequiredIngredients.push(
-        { name: 'Olive oil', category: 'Pantry Staples', quantity: '1 tbsp' },
-        { name: 'Garlic', category: 'Produce', quantity: '2 cloves' },
-        { name: 'Salt & pepper', category: 'Pantry Staples', quantity: 'to taste' },
-        { name: 'Mixed veg', category: 'Produce', quantity: '400g' },
-        { name: 'Chicken breast', category: 'Meat & Fish', quantity: '500g' },
-        { name: 'Eggs', category: 'Dairy', quantity: '6 pcs' },
-        { name: 'Milk', category: 'Dairy', quantity: '1 liter' },
+        { name: "Olive oil", category: "Pantry Staples", quantity: "1 tbsp" },
+        { name: "Garlic", category: "Produce", quantity: "2 cloves" },
+        {
+          name: "Salt & pepper",
+          category: "Pantry Staples",
+          quantity: "to taste",
+        },
+        { name: "Mixed veg", category: "Produce", quantity: "400g" },
+        { name: "Chicken breast", category: "Meat & Fish", quantity: "500g" },
+        { name: "Eggs", category: "Dairy", quantity: "6 pcs" },
+        { name: "Milk", category: "Dairy", quantity: "1 liter" },
       );
     }
 
     // Deduplicate ingredients
-    const ingredientMap = new Map<string, { name: string; category: string; quantity: string }>();
+    const ingredientMap = new Map<
+      string,
+      { name: string; category: string; quantity: string }
+    >();
     for (const ing of rawRequiredIngredients) {
       const key = ing.name.trim().toLowerCase();
       if (!ingredientMap.has(key)) {
@@ -68,8 +83,18 @@ export class ShoppingListService {
       }
     }
 
-    const itemsToBuy: { name: string; category: string; quantity: string; inPantry: boolean }[] = [];
-    const itemsAlreadyInPantry: { name: string; category: string; quantity: string; inPantry: boolean }[] = [];
+    const itemsToBuy: {
+      name: string;
+      category: string;
+      quantity: string;
+      inPantry: boolean;
+    }[] = [];
+    const itemsAlreadyInPantry: {
+      name: string;
+      category: string;
+      quantity: string;
+      inPantry: boolean;
+    }[] = [];
 
     for (const [key, ing] of ingredientMap.entries()) {
       const isAlreadyInPantry = pantryStockNames.has(key);
@@ -90,7 +115,7 @@ export class ShoppingListService {
     // Categorize by department
     const departments: Record<string, typeof itemsToBuy> = {};
     for (const item of itemsToBuy) {
-      const cat = item.category || 'Pantry Staples';
+      const cat = item.category || "Pantry Staples";
       if (!departments[cat]) {
         departments[cat] = [];
       }
@@ -117,9 +142,9 @@ export class ShoppingListService {
       const pantryEntries = checkedItems.map((item) => ({
         userId,
         ingredientName: item.name,
-        category: item.category || 'Pantry Staples',
+        category: item.category || "Pantry Staples",
         quantity: 1.0,
-        unit: 'pcs',
+        unit: "pcs",
         isLowStock: false,
       }));
 
@@ -133,7 +158,7 @@ export class ShoppingListService {
     const activePlan = await this.prisma.mealPlan.findFirst({
       where: {
         userId,
-        status: { in: ['ACTIVE', 'Active', 'active'] },
+        status: { in: ["ACTIVE", "Active", "active"] },
       },
     });
 
@@ -147,10 +172,12 @@ export class ShoppingListService {
     return {
       success: true,
       addedToPantryCount: checkedItems?.length || 0,
-      actualCostLogged: actualCost !== undefined ? actualCost : activePlan?.totalEstimatedCost,
-      message: actualCost !== undefined
-        ? `All logged! You spent $${actualCost.toFixed(2)} on this plan.`
-        : `Estimate kept ($${activePlan?.totalEstimatedCost.toFixed(2) || '0.00'}).`,
+      actualCostLogged:
+        actualCost !== undefined ? actualCost : activePlan?.totalEstimatedCost,
+      message:
+        actualCost !== undefined
+          ? `All logged! You spent $${actualCost.toFixed(2)} on this plan.`
+          : `Estimate kept ($${activePlan?.totalEstimatedCost.toFixed(2) || "0.00"}).`,
     };
   }
 }

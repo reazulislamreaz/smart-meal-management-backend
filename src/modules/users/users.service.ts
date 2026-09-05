@@ -2,18 +2,19 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
-} from '@nestjs/common';
-import { UsersRepository } from './users.repository';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdateOnboardingDto } from './dto/onboarding.dto';
-import * as argon2 from 'argon2';
-import { User, Prisma } from '@prisma/client';
-import { PrismaService } from '@/database/prisma.service';
+} from "@nestjs/common";
+import { UsersRepository } from "./users.repository";
+import { CreateUserDto } from "./dto/create-user.dto";
+import { UpdateUserDto } from "./dto/update-user.dto";
+import { UpdateOnboardingDto } from "./dto/onboarding.dto";
+import * as argon2 from "argon2";
+import { User, Prisma } from "@prisma/client";
+import { PrismaService } from "@/database/prisma.service";
 import {
   mealFrequencyFromUser,
   mealFrequencyToLegacy,
-} from '../meal-plans/utils/meal-frequency.util';
+} from "../meal-plans/utils/meal-frequency.util";
+import { normalizeCountryAndCurrency } from "@/common/constants/country-currency.constant";
 
 @Injectable()
 export class UsersService {
@@ -22,10 +23,10 @@ export class UsersService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async createUser(dto: CreateUserDto): Promise<Omit<User, 'passwordHash'>> {
+  async createUser(dto: CreateUserDto): Promise<Omit<User, "passwordHash">> {
     const existing = await this.usersRepository.findByEmail(dto.email);
     if (existing) {
-      throw new ConflictException('User with this email already exists');
+      throw new ConflictException("User with this email already exists");
     }
 
     const passwordHash = await argon2.hash(dto.password);
@@ -41,7 +42,7 @@ export class UsersService {
     return result;
   }
 
-  async findById(id: string): Promise<Omit<User, 'passwordHash'>> {
+  async findById(id: string): Promise<Omit<User, "passwordHash">> {
     const user = await this.usersRepository.findById(id);
     if (!user) {
       throw new NotFoundException(`User with ID "${id}" not found`);
@@ -54,12 +55,15 @@ export class UsersService {
     return this.usersRepository.findByEmail(email);
   }
 
-  async findAll(page = 1, limit = 10): Promise<{ data: Omit<User, 'passwordHash'>[]; meta: any }> {
+  async findAll(
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Omit<User, "passwordHash">[]; meta: any }> {
     const skip = (page - 1) * limit;
     const { users, total } = await this.usersRepository.findAll({
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
 
     const sanitizedUsers = users.map(({ passwordHash, ...user }) => user);
@@ -75,13 +79,23 @@ export class UsersService {
     };
   }
 
-  async updateUser(id: string, dto: UpdateUserDto): Promise<Omit<User, 'passwordHash'>> {
+  async updateUser(
+    id: string,
+    dto: UpdateUserDto,
+  ): Promise<Omit<User, "passwordHash">> {
     await this.findById(id);
 
     const updateData: any = { ...dto };
     if (dto.password) {
       updateData.passwordHash = await argon2.hash(dto.password);
       delete updateData.password;
+    }
+
+    // Synchronize and validate country & currency (US -> USD, UK -> GBP)
+    if (dto.country !== undefined || dto.currency !== undefined) {
+      const normalized = normalizeCountryAndCurrency(dto.country, dto.currency);
+      updateData.country = normalized.country;
+      updateData.currency = normalized.currency;
     }
 
     const updated = await this.usersRepository.update(id, updateData);
@@ -97,7 +111,7 @@ export class UsersService {
   async updateOnboarding(
     userId: string,
     dto: UpdateOnboardingDto,
-  ): Promise<Omit<User, 'passwordHash'>> {
+  ): Promise<Omit<User, "passwordHash">> {
     await this.findById(userId);
 
     const updateData: Prisma.UserUpdateInput = {};
@@ -124,8 +138,7 @@ export class UsersService {
           dto.mealFrequency.breakfast ??
           currentUser?.mealFrequencyBreakfast ??
           0,
-        lunch:
-          dto.mealFrequency.lunch ?? currentUser?.mealFrequencyLunch ?? 0,
+        lunch: dto.mealFrequency.lunch ?? currentUser?.mealFrequencyLunch ?? 0,
         dinner:
           dto.mealFrequency.dinner ?? currentUser?.mealFrequencyDinner ?? 0,
       };
@@ -146,8 +159,22 @@ export class UsersService {
     if (dto.kitchenEquipment !== undefined) {
       updateData.kitchenEquipment = dto.kitchenEquipment;
     }
-    if (dto.pantryStaples !== undefined) {
-      updateData.pantryStaples = dto.pantryStaples;
+    if (dto.pantryStaples !== undefined || dto.pantryItems !== undefined) {
+      const rawList = dto.pantryItems || dto.pantryStaples || [];
+      const stringStaples = rawList
+        .map((item: any) =>
+          typeof item === "string"
+            ? item.trim()
+            : String(
+                item?.ingredientName || item?.name || item?.title || "",
+              ).trim(),
+        )
+        .filter(Boolean);
+
+      updateData.pantryStaples = stringStaples;
+
+      // Automatically sync selected items directly into the user's pantry
+      await this.syncOnboardingPantryItems(userId, rawList);
     }
     if (dto.dietaryRestrictions !== undefined) {
       updateData.dietaryRestrictions = dto.dietaryRestrictions;
@@ -158,11 +185,11 @@ export class UsersService {
     if (dto.preferredStoreType !== undefined) {
       updateData.preferredStoreType = dto.preferredStoreType;
     }
-    if (dto.currency !== undefined) {
-      updateData.currency = dto.currency;
-    }
-    if (dto.country !== undefined) {
-      updateData.country = dto.country;
+    // Synchronize and validate country & currency (US -> USD, UK -> GBP)
+    if (dto.country !== undefined || dto.currency !== undefined) {
+      const normalized = normalizeCountryAndCurrency(dto.country, dto.currency);
+      updateData.country = normalized.country;
+      updateData.currency = normalized.currency;
     }
     if (dto.city !== undefined) {
       updateData.city = dto.city;
@@ -179,6 +206,15 @@ export class UsersService {
 
     const updated = await this.usersRepository.update(userId, updateData);
     const { passwordHash, ...result } = updated;
+
+    // When onboarding completes or user has pantry staples, guarantee pantry items are synchronized
+    if (
+      dto.isCompleted ||
+      (result.pantryStaples && result.pantryStaples.length > 0)
+    ) {
+      await this.syncOnboardingPantryItems(userId, result.pantryStaples);
+    }
+
     return result;
   }
 
@@ -220,44 +256,217 @@ export class UsersService {
   async completeOnboarding(
     userId: string,
     dto?: UpdateOnboardingDto,
-  ): Promise<Omit<User, 'passwordHash'>> {
-    const payload = dto ? { ...dto, isCompleted: true, onboardingStep: 8 } : { isCompleted: true, onboardingStep: 8 };
+  ): Promise<Omit<User, "passwordHash">> {
+    const payload = dto
+      ? { ...dto, isCompleted: true, onboardingStep: 8 }
+      : { isCompleted: true, onboardingStep: 8 };
+
     const updatedUser = await this.updateOnboarding(userId, payload);
 
-    // Auto-populate pantry items from user's selected pantryStaples
+    // Guarantee all onboarding selected pantry staples are saved to pantry_items
     if (updatedUser.pantryStaples && updatedUser.pantryStaples.length > 0) {
-      const itemsToCreate = (updatedUser.pantryStaples as string[]).map((staple: string) => ({
-        userId,
-        ingredientName: staple,
-        category: 'Pantry Staples',
-        quantity: 1.0,
-        unit: 'pcs',
-        isLowStock: false,
-      }));
-      await this.prisma.pantryItem.createMany({
-        data: itemsToCreate,
-        skipDuplicates: true,
-      });
+      await this.syncOnboardingPantryItems(userId, updatedUser.pantryStaples);
     }
 
     return updatedUser;
   }
 
-  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+  /**
+   * Synchronizes onboarding-selected items into the pantry_items table without duplicates.
+   */
+  async syncOnboardingPantryItems(userId: string, itemsList: any[]) {
+    if (!itemsList || !Array.isArray(itemsList) || itemsList.length === 0) {
+      return;
+    }
+
+    try {
+      const existingPantry = await this.prisma.pantryItem.findMany({
+        where: { userId },
+        select: { ingredientName: true },
+      });
+
+      const existingNamesSet = new Set(
+        existingPantry.map((item) => item.ingredientName.trim().toLowerCase()),
+      );
+
+      const itemsToInsert: Array<{
+        userId: string;
+        ingredientName: string;
+        category: string;
+        quantity: number;
+        unit: string;
+        isLowStock: boolean;
+        expiryDate: Date | null;
+      }> = [];
+
+      for (const raw of itemsList) {
+        if (!raw) continue;
+
+        let name = "";
+        let category = "Pantry Staples";
+        let quantity = 1.0;
+        let unit = "pcs";
+        let isLowStock = false;
+        let expiryDate: Date | null = null;
+
+        if (typeof raw === "string") {
+          name = raw.trim();
+          category = this.inferPantryCategory(name);
+          unit = this.inferPantryUnit(name);
+        } else if (typeof raw === "object") {
+          name = String(
+            raw.ingredientName || raw.name || raw.title || "",
+          ).trim();
+          category = raw.category || this.inferPantryCategory(name);
+          quantity =
+            typeof raw.quantity === "number" && raw.quantity > 0
+              ? raw.quantity
+              : parseFloat(String(raw.quantity)) || 1.0;
+          unit = raw.unit || this.inferPantryUnit(name);
+          isLowStock = !!raw.isLowStock;
+          if (raw.expiryDate) {
+            const parsed = new Date(raw.expiryDate);
+            if (!isNaN(parsed.getTime())) {
+              expiryDate = parsed;
+            }
+          }
+        }
+
+        if (!name) continue;
+
+        const normalizedKey = name.toLowerCase();
+        if (!existingNamesSet.has(normalizedKey)) {
+          existingNamesSet.add(normalizedKey);
+          itemsToInsert.push({
+            userId,
+            ingredientName: name,
+            category,
+            quantity,
+            unit,
+            isLowStock,
+            expiryDate,
+          });
+        }
+      }
+
+      if (itemsToInsert.length > 0) {
+        await this.prisma.pantryItem.createMany({
+          data: itemsToInsert,
+        });
+      }
+    } catch {
+      // Gracefully avoid blocking user onboarding if DB sync has transient error
+    }
+  }
+
+  private inferPantryCategory(name: string): string {
+    const lower = name.toLowerCase();
+    if (
+      lower.includes("milk") ||
+      lower.includes("cheese") ||
+      lower.includes("yogurt") ||
+      lower.includes("butter") ||
+      lower.includes("cream") ||
+      lower.includes("egg")
+    ) {
+      return "Dairy";
+    }
+    if (
+      lower.includes("chicken") ||
+      lower.includes("beef") ||
+      lower.includes("pork") ||
+      lower.includes("turkey") ||
+      lower.includes("salmon") ||
+      lower.includes("tuna") ||
+      lower.includes("fish") ||
+      lower.includes("meat") ||
+      lower.includes("shrimp") ||
+      lower.includes("prawn")
+    ) {
+      return "Meat & Fish";
+    }
+    if (
+      lower.includes("apple") ||
+      lower.includes("banana") ||
+      lower.includes("spinach") ||
+      lower.includes("broccoli") ||
+      lower.includes("onion") ||
+      lower.includes("garlic") ||
+      lower.includes("tomato") ||
+      lower.includes("pepper") ||
+      lower.includes("potato") ||
+      lower.includes("lemon") ||
+      lower.includes("avocado") ||
+      lower.includes("lettuce") ||
+      lower.includes("carrot") ||
+      lower.includes("berry")
+    ) {
+      return "Produce";
+    }
+    if (
+      lower.includes("bread") ||
+      lower.includes("bagel") ||
+      lower.includes("tortilla") ||
+      lower.includes("pitta")
+    ) {
+      return "Bakery";
+    }
+    return "Pantry Staples";
+  }
+
+  private inferPantryUnit(name: string): string {
+    const lower = name.toLowerCase();
+    if (
+      lower.includes("milk") ||
+      lower.includes("oil") ||
+      lower.includes("vinegar") ||
+      lower.includes("sauce")
+    ) {
+      return "bottle";
+    }
+    if (
+      lower.includes("rice") ||
+      lower.includes("flour") ||
+      lower.includes("sugar") ||
+      lower.includes("pasta") ||
+      lower.includes("oat")
+    ) {
+      return "kg";
+    }
+    if (
+      lower.includes("bean") ||
+      lower.includes("chickpea") ||
+      lower.includes("canned") ||
+      lower.includes("tuna") ||
+      lower.includes("soup")
+    ) {
+      return "can";
+    }
+    if (lower.includes("egg")) {
+      return "pcs";
+    }
+    return "pcs";
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
     const user = await this.usersRepository.findById(userId);
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     const isValid = await argon2.verify(user.passwordHash, currentPassword);
     if (!isValid) {
-      throw new ConflictException('Current password does not match');
+      throw new ConflictException("Current password does not match");
     }
 
     const newHash = await argon2.hash(newPassword);
     await this.usersRepository.update(userId, { passwordHash: newHash });
 
-    return { success: true, message: 'Password updated successfully' };
+    return { success: true, message: "Password updated successfully" };
   }
 
   /**
@@ -266,7 +475,7 @@ export class UsersService {
   async getUserDashboard(userId: string) {
     const user = await this.usersRepository.findById(userId);
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     const today = new Date();
@@ -277,38 +486,39 @@ export class UsersService {
     const activePlan = await this.prisma.mealPlan.findFirst({
       where: {
         userId,
-        status: { in: ['ACTIVE', 'Active', 'active'] },
+        status: { in: ["ACTIVE", "Active", "active"] },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       include: {
         items: {
           include: { meal: true },
-          orderBy: [{ dayOfWeek: 'asc' }, { mealType: 'asc' }],
+          orderBy: [{ dayOfWeek: "asc" }, { mealType: "asc" }],
         },
       },
     });
 
     // 2. Fetch pantry summary & expiring items
-    const [totalPantryCount, lowStockCount, expiringCount, expiringItems] = await Promise.all([
-      this.prisma.pantryItem.count({ where: { userId } }),
-      this.prisma.pantryItem.count({ where: { userId, isLowStock: true } }),
-      this.prisma.pantryItem.count({
-        where: { userId, expiryDate: { lte: threeDaysFromNow } },
-      }),
-      this.prisma.pantryItem.findMany({
-        where: { userId, expiryDate: { lte: threeDaysFromNow } },
-        take: 3,
-        orderBy: { expiryDate: 'asc' },
-      }),
-    ]);
+    const [totalPantryCount, lowStockCount, expiringCount, expiringItems] =
+      await Promise.all([
+        this.prisma.pantryItem.count({ where: { userId } }),
+        this.prisma.pantryItem.count({ where: { userId, isLowStock: true } }),
+        this.prisma.pantryItem.count({
+          where: { userId, expiryDate: { lte: threeDaysFromNow } },
+        }),
+        this.prisma.pantryItem.findMany({
+          where: { userId, expiryDate: { lte: threeDaysFromNow } },
+          take: 3,
+          orderBy: { expiryDate: "asc" },
+        }),
+      ]);
 
     // 3. Pending tasks count & next upcoming tasks
     const [pendingTasksCount, upcomingTasks] = await Promise.all([
-      this.prisma.task.count({ where: { userId, status: 'PENDING' } }),
+      this.prisma.task.count({ where: { userId, status: "PENDING" } }),
       this.prisma.task.findMany({
-        where: { userId, status: 'PENDING' },
+        where: { userId, status: "PENDING" },
         take: 3,
-        orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
+        orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
       }),
     ]);
 
@@ -330,7 +540,9 @@ export class UsersService {
       );
       const currentDayOfWeek = Math.min(Math.max(diffDays, 1), maxDayInPlan);
 
-      todaysMeals = activePlan.items.filter((i) => i.dayOfWeek === currentDayOfWeek);
+      todaysMeals = activePlan.items.filter(
+        (i) => i.dayOfWeek === currentDayOfWeek,
+      );
       if (todaysMeals.length === 0) {
         todaysMeals = activePlan.items.filter((i) => i.dayOfWeek === 1);
       }
@@ -344,12 +556,12 @@ export class UsersService {
         ? activePlan.actualCost
         : estimatedCost;
     const budgetDelta = Math.round((estimatedCost - weeklyBudget) * 100) / 100;
-    const currency = user.currency || 'USD';
+    const currency = user.currency || "USD";
 
     return {
       user: {
         id: user.id,
-        name: user.name || 'User',
+        name: user.name || "User",
         email: user.email,
         avatarUrl: user.avatarUrl,
         currency,
@@ -359,12 +571,13 @@ export class UsersService {
       mealPlan: {
         hasActivePlan: !!activePlan,
         planId: activePlan?.id || null,
-        planStatus: activePlan?.status || 'NO_PLAN',
+        planStatus: activePlan?.status || "NO_PLAN",
         totalEstimatedCost: estimatedCost,
         actualCost: activePlan?.actualCost || null,
         todaysMeals,
         totalMealsCount: activePlan?.items.length || 0,
-        cookedMealsInPlanCount: activePlan?.items.filter((i) => i.isCooked).length || 0,
+        cookedMealsInPlanCount:
+          activePlan?.items.filter((i) => i.isCooked).length || 0,
       },
       budget: {
         currency,
@@ -373,7 +586,10 @@ export class UsersService {
         actualCost,
         budgetDelta: Math.abs(budgetDelta),
         isOverBudget: budgetDelta > 0,
-        progressPercent: Math.min(100, Math.round((estimatedCost / weeklyBudget) * 100)),
+        progressPercent: Math.min(
+          100,
+          Math.round((estimatedCost / weeklyBudget) * 100),
+        ),
       },
       pantry: {
         totalItems: totalPantryCount,
@@ -392,4 +608,3 @@ export class UsersService {
     };
   }
 }
-

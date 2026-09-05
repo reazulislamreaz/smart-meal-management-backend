@@ -87,6 +87,7 @@ export interface GeneratePlanOptions {
     currency?: string;
     country?: string | null;
     city?: string | null;
+    measurementSystem?: string;
   };
   pantryItems?: Array<{
     ingredientName: string;
@@ -121,6 +122,7 @@ export interface GeneratePlanOptions {
     currency?: string;
     country?: string;
     city?: string;
+    measurementSystem?: string;
   };
   pricingCalibration?: PricingCalibration;
   storeModifier?: StoreModifier;
@@ -141,7 +143,9 @@ export interface GenerateRecommendationsOptions {
     currency?: string;
     country?: string | null;
     city?: string | null;
+    measurementSystem?: string;
   };
+  measurementSystem?: string;
   mealType?: string;
   cuisine?: string;
   dietaryRestrictions?: string[];
@@ -299,11 +303,26 @@ export class OpenAiService {
   Adjust individual recipe price estimates by ${pricingCalibration.factor.toFixed(2)}x to ensure total cost accuracy matches their actual store checkout.`;
     }
 
+    const measurementSystem =
+      overrides.measurementSystem ||
+      user.measurementSystem ||
+      ((overrides.country || user.country || "")
+        .toLowerCase()
+        .includes("united states") ||
+      (overrides.country || user.country || "").toLowerCase() === "us"
+        ? "IMPERIAL"
+        : "METRIC");
+
     // Regional & Store modifier context instructions
     const storePromptSection = `
 - REGIONAL & STORE MODIFIERS:
   * Target Currency: ${currency}
   * Location: ${location}
+  * Measurement System: ${measurementSystem} (Use ${
+    measurementSystem === "IMPERIAL"
+      ? "Imperial units like lbs, oz, cups, fl oz, tbsp, tsp"
+      : "Metric units like grams (g), kg, ml, liters (L), tbsp, tsp"
+  } for all ingredient quantities)
   * Supermarket Tier/Chain: ${storeType} (Price Index Multiplier: ${storeMultiplier.toFixed(2)}x)
   * Price accordingly: Discount stores (e.g. Aldi/Lidl ~0.82x), Standard stores (e.g. Kroger/Tesco ~1.0x), Premium stores (e.g. Whole Foods/M&S ~1.30x).`;
 
@@ -334,22 +353,26 @@ Follow these strict rules:
 7. Scale all recipes and ingredient quantities for ${totalServings} person(s) (${adultsCount} adult(s), ${childrenCount} child(ren)).
 8. Ensure the estimated total cost across all meals approximates the target weekly budget of ${currency} ${weeklyBudget.toFixed(2)}. Assign realistic individual meal costs in ${currency}.
 9. STRICT DIETARY ADHERENCE: Strictly adhere to all dietary restrictions: ${dietaryRestrictions.length > 0 ? dietaryRestrictions.join(", ") : "None"}. Never include prohibited ingredients.
-10. CUISINE DIVERSITY & BALANCE: Cater to cuisine preferences (${cuisinePreferences.length > 0 ? cuisinePreferences.join(", ") : "Versatile/International"}) while offering exciting culinary variety. Avoid repetitive meals.
-11. PROTEIN & TEXTURE ROTATION: Rotate protein sources across the days (e.g., salmon/fish, poultry, legumes/lentils, tofu/tempeh, eggs, lean beef/turkey, halloumi) so consecutive meals never feel repetitive.
-12. SLOT APPROPRIATENESS:
-    - BREAKFAST: Wholesome morning items (e.g., savory hashes, shakshuka, chia seed pudding, smoothie bowls, frittatas, protein pancakes, baked oatmeal).
-    - LUNCH: Convenient, energizing, or meal-prep friendly options (e.g., vibrant grain bowls, gourmet wraps, nourishing soups, Mediterranean or Asian noodle salads).
-    - DINNER: Hearty, satisfying, and balanced culinary centerpieces (e.g., traybakes, curries, skillet pastas, roasted platters, braised dishes, stir-fries).
-13. ANTI-REPETITION: Do NOT generate duplicate or nearly identical recipes across the plan. Also avoid repeating these recently cooked/planned meals:
+10. CUISINE DIVERSITY & BALANCE: Cater to cuisine preferences (${cuisinePreferences.length > 0 ? cuisinePreferences.join(", ") : "Versatile/International"}) while offering exciting culinary variety.
+11. ABSOLUTE PLAN-WIDE VARIETY & ZERO REPETITION:
+    - Every single meal across all ${daysCount} days MUST be a distinct, non-repeated recipe with a unique title and unique flavor profile.
+    - NEVER repeat the same breakfast, lunch, or dinner across different days (e.g. Day 1 Breakfast != Day 2 Breakfast != Day 3 Breakfast; Day 1 Dinner != Day 2 Dinner != Day 3 Dinner).
+    - If ${totalMealsRequired} total meals are requested, output exactly ${totalMealsRequired} completely different, creative recipes.
+12. PROTEIN & BASE DIVERSIFICATION: Rotate hero protein and starch bases across consecutive days (e.g. Day 1 Salmon/Fish, Day 2 Chicken/Poultry, Day 3 Chickpeas/Legumes, Day 4 Lean Beef/Turkey, Day 5 Tofu/Tempeh, Day 6 Eggs/Halloumi, Day 7 Vegetarian Grains).
+13. SLOT APPROPRIATENESS:
+    - BREAKFAST: Varied morning items (e.g., savory sweet potato hashes, shakshuka, chia seed pudding, smoothie bowls, vegetable frittatas, protein oat pancakes, baked oatmeal).
+    - LUNCH: Varied midday items (e.g., vibrant quinoa grain bowls, gourmet pita wraps, nourishing soups, Mediterranean salads, Asian sesame soba bowls).
+    - DINNER: Varied evening centerpieces (e.g., sheet pan salmon traybakes, coconut vegetable curries, skillet lemon-herb pasta, roasted platters, braised dishes, wok stir-fries).
+14. RECENT HISTORY NON-REPETITION: Do NOT repeat any of these recently cooked/planned meals:
 ${recentMealsText}
-14. Take advantage of available kitchen equipment: ${kitchenEquipment.length > 0 ? kitchenEquipment.join(", ") : "Standard kitchen"}.
-15. Prioritize and reuse ingredients already in the user's pantry/stock to reduce grocery costs and food waste:
+15. Take advantage of available kitchen equipment: ${kitchenEquipment.length > 0 ? kitchenEquipment.join(", ") : "Standard kitchen"}.
+16. Prioritize and reuse ingredients already in the user's pantry/stock to reduce grocery costs and food waste:
 ${pantryStockText}
-16. Respect preferred meal vibes: ${mealVibes.length > 0 ? mealVibes.join(", ") : "Balanced & wholesome"}.
-17. Apply pricing models:
+17. Respect preferred meal vibes: ${mealVibes.length > 0 ? mealVibes.join(", ") : "Balanced & wholesome"}.
+18. Apply pricing models:
 ${storePromptSection}
 ${calibrationPromptSection}
-18. Output ONLY valid JSON according to the schema provided below. Do not wrap in markdown quotes or add conversational filler.`;
+19. Output ONLY valid JSON according to the schema provided below. Do not wrap in markdown quotes or add conversational filler.`;
 
     const userPrompt = `Create the weekly meal plan with the following specifications:
 - Planning Days: ${daysCount}

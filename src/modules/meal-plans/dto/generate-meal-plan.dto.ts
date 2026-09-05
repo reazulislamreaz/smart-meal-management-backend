@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsOptional,
   IsInt,
@@ -9,27 +9,36 @@ import {
   IsNumber,
   IsBoolean,
   ValidateNested,
-} from 'class-validator';
-import { Type } from 'class-transformer';
-import { MealFrequencyDto } from './meal-frequency.dto';
+} from "class-validator";
+import { Type } from "class-transformer";
+import { MealFrequencyDto } from "./meal-frequency.dto";
 
 export class GeneratePlanPantryItemDto {
-  @ApiPropertyOptional({ example: 'Chicken Breast', description: 'Name of the ingredient' })
+  @ApiPropertyOptional({
+    example: "Chicken Breast",
+    description: "Name of the ingredient",
+  })
   @IsString()
   ingredientName: string;
 
-  @ApiPropertyOptional({ example: 'Meat & Poultry', description: 'Department or category' })
+  @ApiPropertyOptional({
+    example: "Meat & Poultry",
+    description: "Department or category",
+  })
   @IsOptional()
   @IsString()
   category?: string;
 
-  @ApiPropertyOptional({ example: 500, description: 'Quantity in stock' })
+  @ApiPropertyOptional({ example: 500, description: "Quantity in stock" })
   @IsOptional()
   @IsNumber()
   @Type(() => Number)
   quantity?: number;
 
-  @ApiPropertyOptional({ example: 'g', description: 'Unit of measurement (g, kg, pcs, tbsp, etc.)' })
+  @ApiPropertyOptional({
+    example: "g",
+    description: "Unit of measurement (g, kg, pcs, tbsp, etc.)",
+  })
   @IsOptional()
   @IsString()
   unit?: string;
@@ -38,7 +47,7 @@ export class GeneratePlanPantryItemDto {
 export class GenerateMealPlanDto {
   @ApiPropertyOptional({
     description:
-      'Exact number of meals to generate per meal type (preferred over plannedMealTypes × plannedDaysCount)',
+      "Exact number of meals to generate per meal type (preferred over plannedMealTypes × plannedDaysCount)",
     example: { breakfast: 0, lunch: 3, dinner: 5 },
     type: MealFrequencyDto,
   })
@@ -48,7 +57,7 @@ export class GenerateMealPlanDto {
   mealFrequency?: MealFrequencyDto;
 
   @ApiPropertyOptional({
-    description: 'Target weekly grocery budget in USD (Onboarding Step 4)',
+    description: "Target weekly grocery budget in USD (Onboarding Step 4)",
     example: 150.0,
   })
   @IsOptional()
@@ -58,7 +67,7 @@ export class GenerateMealPlanDto {
   weeklyBudget?: number;
 
   @ApiPropertyOptional({
-    description: 'Number of days for the meal plan (1-14, Onboarding Step 3)',
+    description: "Number of days for the meal plan (1-14, Onboarding Step 3)",
     example: 7,
     minimum: 1,
     maximum: 14,
@@ -71,7 +80,7 @@ export class GenerateMealPlanDto {
   daysCount?: number;
 
   @ApiPropertyOptional({
-    description: 'Alias for daysCount (Onboarding Step 3)',
+    description: "Alias for daysCount (Onboarding Step 3)",
     example: 7,
     minimum: 1,
     maximum: 14,
@@ -84,8 +93,9 @@ export class GenerateMealPlanDto {
   plannedDaysCount?: number;
 
   @ApiPropertyOptional({
-    description: 'Meal slots to cover (e.g. BREAKFAST, LUNCH, DINNER, SNACK - Onboarding Step 3)',
-    example: ['BREAKFAST', 'LUNCH', 'DINNER'],
+    description:
+      "Meal slots to cover (e.g. BREAKFAST, LUNCH, DINNER, SNACK - Onboarding Step 3)",
+    example: ["BREAKFAST", "LUNCH", "DINNER"],
     type: [String],
   })
   @IsOptional()
@@ -94,8 +104,8 @@ export class GenerateMealPlanDto {
   mealTypes?: string[];
 
   @ApiPropertyOptional({
-    description: 'Alias for mealTypes (Onboarding Step 3)',
-    example: ['BREAKFAST', 'LUNCH', 'DINNER'],
+    description: "Alias for mealTypes (Onboarding Step 3)",
+    example: ["BREAKFAST", "LUNCH", "DINNER"],
     type: [String],
   })
   @IsOptional()
@@ -104,7 +114,7 @@ export class GenerateMealPlanDto {
   plannedMealTypes?: string[];
 
   @ApiPropertyOptional({
-    description: 'Number of adults in household (ages 13+, Onboarding Step 2)',
+    description: "Number of adults in household (ages 13+, Onboarding Step 2)",
     example: 2,
     minimum: 1,
   })
@@ -115,7 +125,7 @@ export class GenerateMealPlanDto {
   adultsCount?: number;
 
   @ApiPropertyOptional({
-    description: 'Number of children in household (Onboarding Step 2)',
+    description: "Number of children in household (Onboarding Step 2)",
     example: 1,
     minimum: 0,
   })
@@ -126,8 +136,9 @@ export class GenerateMealPlanDto {
   childrenCount?: number;
 
   @ApiPropertyOptional({
-    description: 'Preferred meal styles/vibes (e.g. BALANCED, QUICK_EASY, HIGH_PROTEIN, BUDGET_FRIENDLY - Onboarding Step 5)',
-    example: ['QUICK_EASY', 'HIGH_PROTEIN'],
+    description:
+      "Preferred meal styles/vibes (e.g. BALANCED, QUICK_EASY, HIGH_PROTEIN, BUDGET_FRIENDLY - Onboarding Step 5)",
+    example: ["QUICK_EASY", "HIGH_PROTEIN"],
     type: [String],
   })
   @IsOptional()
@@ -136,8 +147,9 @@ export class GenerateMealPlanDto {
   mealVibes?: string[];
 
   @ApiPropertyOptional({
-    description: 'Available kitchen equipment (e.g. HOB, OVEN, AIR_FRYER, SLOW_COOKER, BLENDER - Onboarding Step 6)',
-    example: ['AIR_FRYER', 'OVEN', 'HOB'],
+    description:
+      "Available kitchen equipment (e.g. HOB, OVEN, AIR_FRYER, SLOW_COOKER, BLENDER - Onboarding Step 6)",
+    example: ["AIR_FRYER", "OVEN", "HOB"],
     type: [String],
   })
   @IsOptional()
@@ -146,8 +158,9 @@ export class GenerateMealPlanDto {
   kitchenEquipment?: string[];
 
   @ApiPropertyOptional({
-    description: 'Pre-existing pantry staples (e.g. Olive Oil, Garlic, Rice, Pasta, Salt & Pepper - Onboarding Step 7)',
-    example: ['Olive Oil', 'Garlic', 'Rice', 'Soy Sauce'],
+    description:
+      "Pre-existing pantry staples (e.g. Olive Oil, Garlic, Rice, Pasta, Salt & Pepper - Onboarding Step 7)",
+    example: ["Olive Oil", "Garlic", "Rice", "Soy Sauce"],
     type: [String],
   })
   @IsOptional()
@@ -156,7 +169,8 @@ export class GenerateMealPlanDto {
   pantryStaples?: string[];
 
   @ApiPropertyOptional({
-    description: 'Specific in-stock pantry items/ingredients to incorporate in this generation',
+    description:
+      "Specific in-stock pantry items/ingredients to incorporate in this generation",
     type: [GeneratePlanPantryItemDto],
   })
   @IsOptional()
@@ -166,8 +180,9 @@ export class GenerateMealPlanDto {
   pantryItems?: GeneratePlanPantryItemDto[];
 
   @ApiPropertyOptional({
-    description: 'Dietary restrictions (e.g., VEGETARIAN, GLUTEN_FREE, KETO, HALAL, DAIRY_FREE - Onboarding Step 8)',
-    example: ['HIGH_PROTEIN', 'GLUTEN_FREE'],
+    description:
+      "Dietary restrictions (e.g., VEGETARIAN, GLUTEN_FREE, KETO, HALAL, DAIRY_FREE - Onboarding Step 8)",
+    example: ["HIGH_PROTEIN", "GLUTEN_FREE"],
     type: [String],
   })
   @IsOptional()
@@ -176,8 +191,9 @@ export class GenerateMealPlanDto {
   dietaryRestrictions?: string[];
 
   @ApiPropertyOptional({
-    description: 'Preferred cuisines (e.g., ITALIAN, MEXICAN, ASIAN, MEDITERRANEAN - Onboarding Step 8)',
-    example: ['MEDITERRANEAN', 'ASIAN'],
+    description:
+      "Preferred cuisines (e.g., ITALIAN, MEXICAN, ASIAN, MEDITERRANEAN - Onboarding Step 8)",
+    example: ["MEDITERRANEAN", "ASIAN"],
     type: [String],
   })
   @IsOptional()
@@ -186,7 +202,8 @@ export class GenerateMealPlanDto {
   cuisinePreferences?: string[];
 
   @ApiPropertyOptional({
-    description: 'Whether to incorporate existing database pantry stock into the plan',
+    description:
+      "Whether to incorporate existing database pantry stock into the plan",
     example: true,
     default: true,
   })
@@ -195,48 +212,60 @@ export class GenerateMealPlanDto {
   includePantryItems?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Preferred supermarket tier/chain (e.g. DISCOUNT / STANDARD / PREMIUM_ORGANIC or Aldi, Whole Foods)',
-    example: 'DISCOUNT',
+    description:
+      "Preferred supermarket tier/chain (e.g. DISCOUNT / STANDARD / PREMIUM_ORGANIC or Aldi, Whole Foods)",
+    example: "DISCOUNT",
   })
   @IsOptional()
   @IsString()
   preferredStoreType?: string;
 
   @ApiPropertyOptional({
-    description: 'Currency code for budgeting and pricing (e.g. USD, GBP, EUR, CAD, AUD)',
-    example: 'USD',
-    default: 'USD',
+    description:
+      "Currency code for budgeting and pricing (e.g. USD, GBP, EUR, CAD, AUD)",
+    example: "USD",
+    default: "USD",
   })
   @IsOptional()
   @IsString()
   currency?: string;
 
   @ApiPropertyOptional({
-    description: 'User Country for regional price calibration',
-    example: 'United States',
+    description: "User Country for regional price calibration",
+    example: "United States",
   })
   @IsOptional()
   @IsString()
   country?: string;
 
   @ApiPropertyOptional({
-    description: 'User City / Metro area for local price indexing',
-    example: 'Chicago',
+    description: "User City / Metro area for local price indexing",
+    example: "Chicago",
   })
   @IsOptional()
   @IsString()
   city?: string;
 
   @ApiPropertyOptional({
-    description: 'Specific custom requests or focus areas for the AI',
-    example: 'Focus on 20-minute dinners with high protein content',
+    description: "Preferred measurement system (IMPERIAL or METRIC)",
+    example: "METRIC",
+    enum: ["IMPERIAL", "METRIC"],
+  })
+  @IsOptional()
+  @IsString()
+  measurementSystem?: string;
+
+  @ApiPropertyOptional({
+    description: "Specific custom requests or focus areas for the AI",
+    example: "Focus on 20-minute dinners with high protein content",
   })
   @IsOptional()
   @IsString()
   customNotes?: string;
 
   @ApiPropertyOptional({
-    description: 'If true, updates the user profile with these onboarding values for future use',
+    description:
+      "If true, updates the user profile with these onboarding values for future use",
     example: true,
     default: false,
   })

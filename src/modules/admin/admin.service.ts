@@ -23,6 +23,7 @@ import {
   UpdateAppConfigDto,
   UpdateContactSettingsDto,
 } from "./dto/system-settings.dto";
+import { normalizeCountryAndCurrency } from "@/common/constants/country-currency.constant";
 
 const DEFAULT_AVATAR =
   "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80";
@@ -691,6 +692,15 @@ export class AdminService {
       throw new NotFoundException(`User with ID "${id}" not found`);
     }
 
+    let country = dto.country;
+    let currency = (dto as any).currency;
+
+    if (country !== undefined || currency !== undefined) {
+      const normalized = normalizeCountryAndCurrency(country, currency);
+      country = normalized.country;
+      currency = normalized.currency;
+    }
+
     const updated = await this.prisma.user.update({
       where: { id },
       data: {
@@ -699,7 +709,8 @@ export class AdminService {
         role: dto.role,
         weeklyBudget:
           dto.weeklyBudget !== undefined ? Number(dto.weeklyBudget) : undefined,
-        country: dto.country,
+        country,
+        currency,
         city: dto.city,
         address: dto.address,
         isBlocked: dto.isBlocked !== undefined ? dto.isBlocked : undefined,

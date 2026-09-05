@@ -5,20 +5,20 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
-} from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '@/database/prisma.service';
-import { UsersService } from '@/modules/users/users.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
-import * as argon2 from 'argon2';
-import * as crypto from 'crypto';
-import { Role } from '@prisma/client';
+} from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { ConfigService } from "@nestjs/config";
+import { PrismaService } from "@/database/prisma.service";
+import { UsersService } from "@/modules/users/users.service";
+import { RegisterDto } from "./dto/register.dto";
+import { LoginDto } from "./dto/login.dto";
+import * as argon2 from "argon2";
+import * as crypto from "crypto";
+import { Role } from "@prisma/client";
 
-import { MailService } from '@/modules/mail/mail.service';
-import { IpLocationService } from '@/common/services/ip-location.service';
-import { Request } from 'express';
+import { MailService } from "@/modules/mail/mail.service";
+import { IpLocationService } from "@/common/services/ip-location.service";
+import { Request } from "express";
 
 @Injectable()
 export class AuthService {
@@ -33,9 +33,9 @@ export class AuthService {
 
   private hashTokenWithHmac(token: string): string {
     const secret =
-      this.configService.get<string>('HMAC_SESSION_SECRET') ||
-      'super_secret_hmac_key_for_refresh_sessions';
-    return crypto.createHmac('sha256', secret).update(token).digest('hex');
+      this.configService.get<string>("HMAC_SESSION_SECRET") ||
+      "super_secret_hmac_key_for_refresh_sessions";
+    return crypto.createHmac("sha256", secret).update(token).digest("hex");
   }
 
   async detectLocation(req?: Request) {
@@ -47,7 +47,7 @@ export class AuthService {
       where: { email: dto.email },
     });
     if (existing) {
-      throw new ConflictException('User with this email already exists');
+      throw new ConflictException("User with this email already exists");
     }
 
     const detectedLocation = await this.ipLocationService.resolveLocation(req);
@@ -71,21 +71,23 @@ export class AuthService {
       },
     });
 
-    await this.prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'USER_REGISTERED',
-        entity: 'User',
-        entityId: user.id,
-        details: {
-          email: user.email,
-          name: user.name,
-          country: user.country,
-          city: user.city,
+    await this.prisma.auditLog
+      .create({
+        data: {
+          userId: user.id,
+          action: "USER_REGISTERED",
+          entity: "User",
+          entityId: user.id,
+          details: {
+            email: user.email,
+            name: user.name,
+            country: user.country,
+            city: user.city,
+          },
+          ipAddress: req?.ip || "127.0.0.1",
         },
-        ipAddress: req?.ip || '127.0.0.1',
-      },
-    }).catch(() => null);
+      })
+      .catch(() => null);
 
     const { passwordHash: _, ...sanitizedUser } = user;
     return {
@@ -97,32 +99,39 @@ export class AuthService {
   async login(dto: LoginDto, ipAddress?: string, userAgent?: string) {
     const user = await this.usersService.findByEmailInternal(dto.email);
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException("Invalid email or password");
     }
 
     if (user.isBlocked) {
-      throw new UnauthorizedException('Your account has been blocked by an administrator. Please contact support.');
+      throw new UnauthorizedException(
+        "Your account has been blocked by an administrator. Please contact support.",
+      );
     }
 
-    const isValidPassword = await argon2.verify(user.passwordHash, dto.password);
+    const isValidPassword = await argon2.verify(
+      user.passwordHash,
+      dto.password,
+    );
     if (!isValidPassword) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException("Invalid email or password");
     }
 
-    await this.prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: user.role === Role.SUPER_ADMIN ? 'ADMIN_LOGIN' : 'USER_LOGIN',
-        entity: 'Auth',
-        entityId: user.id,
-        details: {
-          email: user.email,
-          role: user.role,
-          userAgent: userAgent || 'Browser',
+    await this.prisma.auditLog
+      .create({
+        data: {
+          userId: user.id,
+          action: user.role === Role.SUPER_ADMIN ? "ADMIN_LOGIN" : "USER_LOGIN",
+          entity: "Auth",
+          entityId: user.id,
+          details: {
+            email: user.email,
+            role: user.role,
+            userAgent: userAgent || "Browser",
+          },
+          ipAddress: ipAddress || "127.0.0.1",
         },
-        ipAddress: ipAddress || '127.0.0.1',
-      },
-    }).catch(() => null);
+      })
+      .catch(() => null);
 
     const tokenPair = await this.generateTokenPair(
       user.id,
@@ -145,11 +154,13 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     if (user.isBlocked) {
-      throw new UnauthorizedException('Your account has been blocked by an administrator. Please contact support.');
+      throw new UnauthorizedException(
+        "Your account has been blocked by an administrator. Please contact support.",
+      );
     }
 
     const { passwordHash: _, ...sanitizedUser } = user;
@@ -166,12 +177,13 @@ export class AuthService {
     const payload = { sub: userId, email, role };
     const accessToken = this.jwtService.sign(payload, {
       secret:
-        this.configService.get<string>('JWT_SECRET') ||
-        'super_secret_jwt_access_key_change_in_production_32bytes_min',
-      expiresIn: (this.configService.get<string>('JWT_ACCESS_EXPIRATION') || '15m') as any,
+        this.configService.get<string>("JWT_SECRET") ||
+        "super_secret_jwt_access_key_change_in_production_32bytes_min",
+      expiresIn: (this.configService.get<string>("JWT_ACCESS_EXPIRATION") ||
+        "15m") as any,
     });
 
-    const rawRefreshToken = crypto.randomBytes(40).toString('hex');
+    const rawRefreshToken = crypto.randomBytes(40).toString("hex");
     const refreshTokenHash = this.hashTokenWithHmac(rawRefreshToken);
 
     const expiresAt = new Date();
@@ -190,12 +202,16 @@ export class AuthService {
     return {
       accessToken,
       refreshToken: rawRefreshToken,
-      tokenType: 'Bearer',
+      tokenType: "Bearer",
       expiresIn: 900,
     };
   }
 
-  async refreshTokenPair(rawRefreshToken: string, ipAddress?: string, userAgent?: string) {
+  async refreshTokenPair(
+    rawRefreshToken: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
     const refreshTokenHash = this.hashTokenWithHmac(rawRefreshToken);
 
     const session = await this.prisma.authSession.findUnique({
@@ -204,11 +220,13 @@ export class AuthService {
     });
 
     if (!session) {
-      throw new UnauthorizedException('Invalid or revoked refresh token');
+      throw new UnauthorizedException("Invalid or revoked refresh token");
     }
 
     if (session.user?.isBlocked) {
-      throw new UnauthorizedException('Your account has been blocked by an administrator. Please contact support.');
+      throw new UnauthorizedException(
+        "Your account has been blocked by an administrator. Please contact support.",
+      );
     }
 
     if (session.isRevoked || session.expiresAt < new Date()) {
@@ -216,7 +234,9 @@ export class AuthService {
         where: { userId: session.userId },
         data: { isRevoked: true },
       });
-      throw new ForbiddenException('Refresh token is expired or revoked. Please log in again.');
+      throw new ForbiddenException(
+        "Refresh token is expired or revoked. Please log in again.",
+      );
     }
 
     await this.prisma.authSession.update({
@@ -249,7 +269,8 @@ export class AuthService {
 
     if (!user) {
       return {
-        message: 'If an account exists with that email, a 6-digit OTP code has been sent.',
+        message:
+          "If an account exists with that email, a 6-digit OTP code has been sent.",
       };
     }
 
@@ -267,11 +288,16 @@ export class AuthService {
       },
     });
 
-    const displayName = user.name || 'User';
-    await this.mailService.sendPasswordResetEmail(user.email, resetCode, displayName);
+    const displayName = user.name || "User";
+    await this.mailService.sendPasswordResetEmail(
+      user.email,
+      resetCode,
+      displayName,
+    );
 
     return {
-      message: 'If an account exists with that email, a 6-digit OTP code has been sent.',
+      message:
+        "If an account exists with that email, a 6-digit OTP code has been sent.",
     };
   }
 
@@ -281,7 +307,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid email or verification code.');
+      throw new UnauthorizedException("Invalid email or verification code.");
     }
 
     const hashedCode = this.hashTokenWithHmac(code);
@@ -292,11 +318,13 @@ export class AuthService {
       !user.passwordResetExpires ||
       user.passwordResetExpires < new Date()
     ) {
-      throw new UnauthorizedException('Invalid or expired 6-digit verification code.');
+      throw new UnauthorizedException(
+        "Invalid or expired 6-digit verification code.",
+      );
     }
 
     return {
-      message: 'OTP verified successfully. You can now reset your password.',
+      message: "OTP verified successfully. You can now reset your password.",
     };
   }
 
@@ -304,19 +332,31 @@ export class AuthService {
     return this.forgotPassword(email);
   }
 
-  async resetPassword(dto: { email: string; newPassword: string; confirmNewPassword: string }) {
+  async resetPassword(dto: {
+    email: string;
+    newPassword: string;
+    confirmNewPassword: string;
+  }) {
     const { email, newPassword, confirmNewPassword } = dto;
 
     if (newPassword !== confirmNewPassword) {
-      throw new BadRequestException('New password and confirm password do not match.');
+      throw new BadRequestException(
+        "New password and confirm password do not match.",
+      );
     }
 
     const user = await this.prisma.user.findUnique({
       where: { email },
     });
 
-    if (!user || !user.passwordResetExpires || user.passwordResetExpires < new Date()) {
-      throw new UnauthorizedException('Invalid or expired password reset session. Please request a new OTP code.');
+    if (
+      !user ||
+      !user.passwordResetExpires ||
+      user.passwordResetExpires < new Date()
+    ) {
+      throw new UnauthorizedException(
+        "Invalid or expired password reset session. Please request a new OTP code.",
+      );
     }
 
     const newPasswordHash = await argon2.hash(newPassword);
@@ -336,7 +376,8 @@ export class AuthService {
     });
 
     return {
-      message: 'Password has been reset successfully. Please log in with your new password.',
+      message:
+        "Password has been reset successfully. Please log in with your new password.",
     };
   }
 }

@@ -8,7 +8,7 @@ import {
   Body,
   Query,
   ParseIntPipe,
-} from '@nestjs/common';
+} from "@nestjs/common";
 import {
   ApiTags,
   ApiOperation,
@@ -17,176 +17,266 @@ import {
   ApiQuery,
   ApiBody,
   ApiParam,
-} from '@nestjs/swagger';
-import { MealPlansService } from './meal-plans.service';
-import { CurrentUser } from '@/common/decorators/current-user.decorator';
-import { RolesGuard } from '@/common/guards/roles.guard';
-import { GenerateMealPlanDto } from './dto/generate-meal-plan.dto';
-import { CreateMealPlanDto } from './dto/create-meal-plan.dto';
-import { UpdateMealPlanItemDto } from './dto/update-meal-plan-item.dto';
+} from "@nestjs/swagger";
+import { MealPlansService } from "./meal-plans.service";
+import { CurrentUser } from "@/common/decorators/current-user.decorator";
+import { RolesGuard } from "@/common/guards/roles.guard";
+import { GenerateMealPlanDto } from "./dto/generate-meal-plan.dto";
+import { CreateMealPlanDto } from "./dto/create-meal-plan.dto";
+import { UpdateMealPlanItemDto } from "./dto/update-meal-plan-item.dto";
 
-@ApiTags('Meal Plans')
+@ApiTags("Meal Plans")
 @ApiBearerAuth()
-@Controller('meal-plans')
+@Controller("meal-plans")
 export class MealPlansController {
   constructor(private readonly mealPlansService: MealPlansService) {}
 
-  @Post('generate')
+  @Post("generate")
   @ApiOperation({
-    summary: 'Trigger AI weekly meal plan generation via OpenAI ChatGPT API',
+    summary: "Trigger AI weekly meal plan generation via OpenAI ChatGPT API",
     description:
-      'Leverages OpenAI to create personalized, budget-conscious meal plans tailored to dietary restrictions, family size, kitchen equipment, and in-stock pantry items.',
+      "Leverages OpenAI to create personalized, budget-conscious meal plans tailored to dietary restrictions, family size, kitchen equipment, and in-stock pantry items.",
   })
   @ApiBody({ type: GenerateMealPlanDto, required: false })
-  @ApiResponse({ status: 201, description: 'AI meal plan generated successfully' })
+  @ApiResponse({
+    status: 201,
+    description: "AI meal plan generated successfully",
+  })
   async generateMealPlan(
-    @CurrentUser('id') userId: string,
+    @CurrentUser("id") userId: string,
     @Body() dto?: GenerateMealPlanDto,
   ) {
     const result = await this.mealPlansService.generateMealPlan(userId, dto);
     return {
-      message: 'Weekly meal plan generated successfully',
+      message: "Weekly meal plan generated successfully",
       data: result,
     };
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a custom meal plan manually' })
+  @ApiOperation({ summary: "Create a custom meal plan manually" })
   @ApiBody({ type: CreateMealPlanDto })
-  @ApiResponse({ status: 201, description: 'Meal plan created successfully' })
+  @ApiResponse({ status: 201, description: "Meal plan created successfully" })
   async createManualPlan(
-    @CurrentUser('id') userId: string,
+    @CurrentUser("id") userId: string,
     @Body() dto: CreateMealPlanDto,
   ) {
     const result = await this.mealPlansService.createManualPlan(userId, dto);
     return {
-      message: 'Custom meal plan created successfully',
+      message: "Custom meal plan created successfully",
       data: result,
     };
   }
 
-  @Get('current')
-  @ApiOperation({ summary: 'Get current active weekly meal plan & budget comparison' })
-  @ApiResponse({ status: 200, description: 'Active meal plan retrieved successfully' })
-  async getCurrentPlan(@CurrentUser('id') userId: string) {
+  @Get("current")
+  @ApiOperation({
+    summary: "Get current active weekly meal plan & budget comparison",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Active meal plan retrieved successfully",
+  })
+  async getCurrentPlan(@CurrentUser("id") userId: string) {
     const result = await this.mealPlansService.getCurrentPlan(userId);
     return {
-      message: 'Current meal plan retrieved successfully',
+      message: "Current meal plan retrieved successfully",
       data: result,
     };
   }
 
-  @Get('history')
-  @ApiOperation({ summary: 'Get historical meal plans for the current user' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Meal plan history retrieved successfully' })
+  @Get("history")
+  @ApiOperation({ summary: "Get historical meal plans for the current user" })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiResponse({
+    status: 200,
+    description: "Meal plan history retrieved successfully",
+  })
   async getPlanHistory(
-    @CurrentUser('id') userId: string,
-    @Query('page', new ParseIntPipe({ optional: true })) page = 1,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit = 10,
+    @CurrentUser("id") userId: string,
+    @Query("page", new ParseIntPipe({ optional: true })) page = 1,
+    @Query("limit", new ParseIntPipe({ optional: true })) limit = 10,
   ) {
-    const result = await this.mealPlansService.getPlanHistory(userId, page, limit);
+    const result = await this.mealPlansService.getPlanHistory(
+      userId,
+      page,
+      limit,
+    );
     return {
-      message: 'Meal plan history retrieved successfully',
+      message: "Meal plan history retrieved successfully",
       data: result.data,
       meta: result.meta,
     };
   }
 
-  @Patch('swap/:itemId')
+  @Get("swap/:itemId/alternatives")
   @ApiOperation({
-    summary: 'Swap a planned meal item with another recipe',
-    description: 'Swaps the recipe for a planned item. If newMealId is not provided, backend automatically selects an alternative recipe matching user dietary restrictions.',
+    summary:
+      "Get AI-driven, non-repetitive alternative recipes for a meal slot",
+    description:
+      "Returns slot-specific meal alternatives for the target meal plan item, excluding meals already present in the active plan to guarantee non-repetition, with price deltas and nutritional estimates.",
   })
-  @ApiParam({ name: 'itemId', description: 'ID of the meal plan item to swap', example: 'uuid-item-id' })
+  @ApiParam({
+    name: "itemId",
+    description: "ID of the meal plan item to find alternatives for",
+    example: "uuid-item-id",
+  })
+  @ApiQuery({
+    name: "count",
+    description: "Number of alternative recommendations (default: 6, max: 20)",
+    required: false,
+    type: Number,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Swap alternatives retrieved successfully",
+  })
+  @ApiResponse({ status: 404, description: "Meal plan item not found" })
+  async getSwapAlternatives(
+    @CurrentUser("id") userId: string,
+    @Param("itemId") itemId: string,
+    @Query("count", new ParseIntPipe({ optional: true })) count = 6,
+  ) {
+    const result = await this.mealPlansService.getSwapAlternatives(
+      userId,
+      itemId,
+      count,
+    );
+    return {
+      message: "Swap alternatives retrieved successfully",
+      ...result,
+    };
+  }
+
+  @Patch("swap/:itemId")
+  @ApiOperation({
+    summary: "Swap a planned meal item with another recipe",
+    description:
+      "Swaps the recipe for a planned item. If newMealId is not provided, backend automatically selects an alternative recipe matching user dietary restrictions.",
+  })
+  @ApiParam({
+    name: "itemId",
+    description: "ID of the meal plan item to swap",
+    example: "uuid-item-id",
+  })
   @ApiBody({
     schema: {
-      type: 'object',
+      type: "object",
       properties: {
         newMealId: {
-          type: 'string',
-          description: 'Optional ID of the target meal from catalog. If omitted, an alternative recipe is selected automatically.',
-          example: 'uuid-new-meal-id',
+          type: "string",
+          description:
+            "Optional ID of the target meal from catalog. If omitted, an alternative recipe is selected automatically.",
+          example: "uuid-new-meal-id",
         },
       },
     },
     required: false,
   })
-  @ApiResponse({ status: 200, description: 'Meal swapped successfully and total budget recalculated' })
-  @ApiResponse({ status: 404, description: 'Meal plan item not found' })
+  @ApiResponse({
+    status: 200,
+    description: "Meal swapped successfully and total budget recalculated",
+  })
+  @ApiResponse({ status: 404, description: "Meal plan item not found" })
   async swapMeal(
-    @CurrentUser('id') userId: string,
-    @Param('itemId') itemId: string,
-    @Body('newMealId') newMealId?: string,
+    @CurrentUser("id") userId: string,
+    @Param("itemId") itemId: string,
+    @Body("newMealId") newMealId?: string,
   ) {
-    const item = await this.mealPlansService.swapMealItem(userId, itemId, newMealId);
+    const item = await this.mealPlansService.swapMealItem(
+      userId,
+      itemId,
+      newMealId,
+    );
     return {
-      message: 'Meal swapped successfully',
+      message: "Meal swapped successfully",
       data: item,
     };
   }
 
-  @Patch('items/:itemId')
+  @Patch("items/:itemId")
   @ApiOperation({
-    summary: 'Update a planned meal item (day of week, meal slot, status)',
-    description: 'Allows shifting meal slot (BREAKFAST / LUNCH / DINNER), reassigning day of week (1 to 7), or updating cooked status.',
+    summary: "Update a planned meal item (day of week, meal slot, status)",
+    description:
+      "Allows shifting meal slot (BREAKFAST / LUNCH / DINNER), reassigning day of week (1 to 7), or updating cooked status.",
   })
-  @ApiParam({ name: 'itemId', description: 'ID of the meal plan item to update', example: 'uuid-item-id' })
+  @ApiParam({
+    name: "itemId",
+    description: "ID of the meal plan item to update",
+    example: "uuid-item-id",
+  })
   @ApiBody({ type: UpdateMealPlanItemDto })
-  @ApiResponse({ status: 200, description: 'Meal plan item updated successfully' })
-  @ApiResponse({ status: 404, description: 'Meal plan item not found' })
+  @ApiResponse({
+    status: 200,
+    description: "Meal plan item updated successfully",
+  })
+  @ApiResponse({ status: 404, description: "Meal plan item not found" })
   async updateMealItem(
-    @CurrentUser('id') userId: string,
-    @Param('itemId') itemId: string,
+    @CurrentUser("id") userId: string,
+    @Param("itemId") itemId: string,
     @Body() dto: UpdateMealPlanItemDto,
   ) {
-    const item = await this.mealPlansService.updateMealPlanItem(userId, itemId, dto);
+    const item = await this.mealPlansService.updateMealPlanItem(
+      userId,
+      itemId,
+      dto,
+    );
     return {
-      message: 'Meal plan item updated successfully',
+      message: "Meal plan item updated successfully",
       data: item,
     };
   }
 
-  @Delete('items/:itemId')
+  @Delete("items/:itemId")
   @ApiOperation({
-    summary: 'Remove a planned meal item from the current meal plan',
-    description: 'Deletes the specified meal item from the user meal plan and recalculates totalEstimatedCost for live budget comparisons.',
+    summary: "Remove a planned meal item from the current meal plan",
+    description:
+      "Deletes the specified meal item from the user meal plan and recalculates totalEstimatedCost for live budget comparisons.",
   })
-  @ApiParam({ name: 'itemId', description: 'ID of the meal plan item to remove', example: 'uuid-item-id' })
-  @ApiResponse({ status: 200, description: 'Meal plan item removed successfully' })
-  @ApiResponse({ status: 404, description: 'Meal plan item not found' })
+  @ApiParam({
+    name: "itemId",
+    description: "ID of the meal plan item to remove",
+    example: "uuid-item-id",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Meal plan item removed successfully",
+  })
+  @ApiResponse({ status: 404, description: "Meal plan item not found" })
   async deleteMealItem(
-    @CurrentUser('id') userId: string,
-    @Param('itemId') itemId: string,
+    @CurrentUser("id") userId: string,
+    @Param("itemId") itemId: string,
   ) {
-    const result = await this.mealPlansService.deleteMealPlanItem(userId, itemId);
+    const result = await this.mealPlansService.deleteMealPlanItem(
+      userId,
+      itemId,
+    );
     return {
       message: result.message,
       data: result,
     };
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get specific meal plan by ID' })
-  @ApiResponse({ status: 200, description: 'Meal plan retrieved successfully' })
+  @Get(":id")
+  @ApiOperation({ summary: "Get specific meal plan by ID" })
+  @ApiResponse({ status: 200, description: "Meal plan retrieved successfully" })
   async getPlanById(
-    @CurrentUser('id') userId: string,
-    @Param('id') planId: string,
+    @CurrentUser("id") userId: string,
+    @Param("id") planId: string,
   ) {
     const plan = await this.mealPlansService.getPlanById(userId, planId);
     return {
-      message: 'Meal plan retrieved successfully',
+      message: "Meal plan retrieved successfully",
       data: plan,
     };
   }
 
-  @Delete(':id')
-  @ApiOperation({ summary: 'Delete a meal plan by ID' })
-  @ApiResponse({ status: 200, description: 'Meal plan deleted successfully' })
+  @Delete(":id")
+  @ApiOperation({ summary: "Delete a meal plan by ID" })
+  @ApiResponse({ status: 200, description: "Meal plan deleted successfully" })
   async deletePlan(
-    @CurrentUser('id') userId: string,
-    @Param('id') planId: string,
+    @CurrentUser("id") userId: string,
+    @Param("id") planId: string,
   ) {
     const result = await this.mealPlansService.deletePlan(userId, planId);
     return {

@@ -102,6 +102,10 @@ model Meal {
   prepTimeMinutes Int            @default(15)
   servings        Int            @default(4)
   estimatedCost   Float          @default(15.0)
+  calories        Int?
+  proteinGrams    Int?
+  carbsGrams      Int?
+  fatGrams        Int?
   cuisine         String         @default("American")
   mealType        String         @default("Dinner")
   status          String         @default("Active")

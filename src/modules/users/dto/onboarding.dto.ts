@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsArray,
   IsBoolean,
@@ -9,14 +9,14 @@ import {
   Max,
   Min,
   ValidateNested,
-} from 'class-validator';
-import { Type } from 'class-transformer';
-import { OptionalMealFrequencyDto } from '../../meal-plans/dto/meal-frequency.dto';
+} from "class-validator";
+import { Type } from "class-transformer";
+import { OptionalMealFrequencyDto } from "../../meal-plans/dto/meal-frequency.dto";
 
 export class UpdateOnboardingDto {
   @ApiPropertyOptional({
     example: 1,
-    description: 'Current onboarding step (1 to 8)',
+    description: "Current onboarding step (1 to 8)",
   })
   @IsOptional()
   @IsInt()
@@ -25,8 +25,8 @@ export class UpdateOnboardingDto {
   onboardingStep?: number;
 
   @ApiPropertyOptional({
-    example: 'Jane Doe',
-    description: 'Step 1: User preferred display name',
+    example: "Jane Doe",
+    description: "Step 1: User preferred display name",
   })
   @IsOptional()
   @IsString()
@@ -34,7 +34,7 @@ export class UpdateOnboardingDto {
 
   @ApiPropertyOptional({
     example: 2,
-    description: 'Step 2: Number of adults in household (ages 13+)',
+    description: "Step 2: Number of adults in household (ages 13+)",
   })
   @IsOptional()
   @IsInt()
@@ -43,7 +43,7 @@ export class UpdateOnboardingDto {
 
   @ApiPropertyOptional({
     example: 1,
-    description: 'Step 2: Number of children in household',
+    description: "Step 2: Number of children in household",
   })
   @IsOptional()
   @IsInt()
@@ -52,7 +52,7 @@ export class UpdateOnboardingDto {
 
   @ApiPropertyOptional({
     example: { breakfast: 0, lunch: 3, dinner: 5 },
-    description: 'Step 3: Exact number of meals to generate per meal type',
+    description: "Step 3: Exact number of meals to generate per meal type",
     type: OptionalMealFrequencyDto,
   })
   @IsOptional()
@@ -61,8 +61,9 @@ export class UpdateOnboardingDto {
   mealFrequency?: OptionalMealFrequencyDto;
 
   @ApiPropertyOptional({
-    example: ['BREAKFAST', 'LUNCH', 'DINNER'],
-    description: 'Step 3: Meals to cover in the plan (legacy; use mealFrequency when possible)',
+    example: ["BREAKFAST", "LUNCH", "DINNER"],
+    description:
+      "Step 3: Meals to cover in the plan (legacy; use mealFrequency when possible)",
   })
   @IsOptional()
   @IsArray()
@@ -71,7 +72,7 @@ export class UpdateOnboardingDto {
 
   @ApiPropertyOptional({
     example: 7,
-    description: 'Step 3: How many days to plan (1 to 7)',
+    description: "Step 3: How many days to plan (1 to 7)",
   })
   @IsOptional()
   @IsInt()
@@ -81,7 +82,7 @@ export class UpdateOnboardingDto {
 
   @ApiPropertyOptional({
     example: 200.0,
-    description: 'Step 4: Target weekly grocery budget',
+    description: "Step 4: Target weekly grocery budget",
   })
   @IsOptional()
   @IsNumber()
@@ -89,8 +90,8 @@ export class UpdateOnboardingDto {
   weeklyBudget?: number;
 
   @ApiPropertyOptional({
-    example: ['BALANCED', 'QUICK_EASY', 'HIGH_PROTEIN'],
-    description: 'Step 5: Preferred meal vibes / styles (up to 3)',
+    example: ["BALANCED", "QUICK_EASY", "HIGH_PROTEIN"],
+    description: "Step 5: Preferred meal vibes / styles (up to 3)",
   })
   @IsOptional()
   @IsArray()
@@ -98,8 +99,8 @@ export class UpdateOnboardingDto {
   mealVibes?: string[];
 
   @ApiPropertyOptional({
-    example: ['HOB', 'OVEN', 'AIR_FRYER'],
-    description: 'Step 6: Available kitchen equipment',
+    example: ["HOB", "OVEN", "AIR_FRYER"],
+    description: "Step 6: Available kitchen equipment",
   })
   @IsOptional()
   @IsArray()
@@ -107,17 +108,24 @@ export class UpdateOnboardingDto {
   kitchenEquipment?: string[];
 
   @ApiPropertyOptional({
-    example: ['Eggs', 'Milk', 'Butter', 'Pasta'],
-    description: 'Step 7: Pre-existing pantry staple ingredients',
+    example: ["Eggs", "Milk", "Butter", "Pasta"],
+    description: "Step 7: Pre-existing pantry staple ingredients",
   })
   @IsOptional()
   @IsArray()
-  @IsString({ each: true })
-  pantryStaples?: string[];
+  pantryStaples?: any[];
 
   @ApiPropertyOptional({
-    example: ['VEGETARIAN', 'GLUTEN_FREE'],
-    description: 'Step 8: Dietary restrictions',
+    description:
+      "Step 7: Structured pantry items with optional quantity, unit, and category",
+  })
+  @IsOptional()
+  @IsArray()
+  pantryItems?: any[];
+
+  @ApiPropertyOptional({
+    example: ["VEGETARIAN", "GLUTEN_FREE"],
+    description: "Step 8: Dietary restrictions",
   })
   @IsOptional()
   @IsArray()
@@ -125,8 +133,8 @@ export class UpdateOnboardingDto {
   dietaryRestrictions?: string[];
 
   @ApiPropertyOptional({
-    example: ['ITALIAN', 'MEXICAN', 'ASIAN'],
-    description: 'Step 8: Cuisine preferences',
+    example: ["ITALIAN", "MEXICAN", "ASIAN"],
+    description: "Step 8: Cuisine preferences",
   })
   @IsOptional()
   @IsArray()
@@ -134,41 +142,52 @@ export class UpdateOnboardingDto {
   cuisinePreferences?: string[];
 
   @ApiPropertyOptional({
-    example: 'DISCOUNT',
-    description: 'Preferred supermarket tier or chain (e.g. DISCOUNT / STANDARD / PREMIUM_ORGANIC or Aldi, Whole Foods)',
+    example: "DISCOUNT",
+    description:
+      "Preferred supermarket tier or chain (e.g. DISCOUNT / STANDARD / PREMIUM_ORGANIC or Aldi, Whole Foods)",
   })
   @IsOptional()
   @IsString()
   preferredStoreType?: string;
 
   @ApiPropertyOptional({
-    example: 'USD',
-    description: 'Currency ISO code (e.g. USD, GBP, EUR, CAD, AUD)',
-    default: 'USD',
+    example: "USD",
+    description: "Currency ISO code (e.g. USD, GBP, EUR, CAD, AUD)",
+    default: "USD",
   })
   @IsOptional()
   @IsString()
   currency?: string;
 
   @ApiPropertyOptional({
-    example: 'United States',
-    description: 'User Country for regional price calibration',
+    example: "United States",
+    description: "User Country for regional price calibration",
   })
   @IsOptional()
   @IsString()
   country?: string;
 
   @ApiPropertyOptional({
-    example: 'Chicago',
-    description: 'User City / Metro area',
+    example: "Chicago",
+    description: "User City / Metro area",
   })
   @IsOptional()
   @IsString()
   city?: string;
 
   @ApiPropertyOptional({
+    example: "IMPERIAL",
+    description: "Preferred measurement system (IMPERIAL [ft, in, lb, oz] or METRIC [cm, mm, L, ml, g, kg])",
+    enum: ["IMPERIAL", "METRIC"],
+    default: "METRIC",
+  })
+  @IsOptional()
+  @IsString()
+  measurementSystem?: string;
+
+  @ApiPropertyOptional({
     example: false,
-    description: 'Mark onboarding flow as complete',
+    description: "Mark onboarding flow as complete",
   })
   @IsOptional()
   @IsBoolean()
