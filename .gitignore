@@ -26,3 +26,6 @@ pino-*.log
 
 # Prisma generated files if outside node_modules
 # /prisma/generated
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
