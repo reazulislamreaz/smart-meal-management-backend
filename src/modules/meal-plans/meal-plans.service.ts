@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Logger,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "@/database/prisma.service";
 import { OpenAiService, AiPlanMeal } from "../ai/openai.service";
 import { GenerateMealPlanDto } from "./dto/generate-meal-plan.dto";
@@ -260,8 +261,10 @@ export class MealPlansService {
           mealSlots,
         );
 
-        for (const aiMeal of alignedMeals) {
-          const mealRecord = await this.findOrCreateAiMeal(aiMeal);
+        const mealRecords = await this.resolveAiMeals(alignedMeals);
+        for (let i = 0; i < alignedMeals.length; i++) {
+          const aiMeal = alignedMeals[i];
+          const mealRecord = mealRecords[i];
           planItemsData.push({
             mealId: mealRecord.id,
             dayOfWeek: aiMeal.dayOfWeek,
@@ -762,24 +765,32 @@ export class MealPlansService {
   }
 
   /**
-   * Finds an existing meal by title or creates a new one from AI output.
+   * Resolves every AI-generated meal to a persisted Meal row, reusing existing catalog
+   * entries with a matching title. Runs as two bulk queries rather than a
+   * lookup-plus-insert round trip per meal, and returns records positionally aligned
+   * with `aiMeals`.
    */
-  private async findOrCreateAiMeal(aiMeal: AiPlanMeal) {
-    const existing = await this.prisma.meal.findFirst({
-      where: {
-        title: {
-          equals: aiMeal.title.trim(),
-          mode: "insensitive",
-        },
-      },
+  private async resolveAiMeals(aiMeals: AiPlanMeal[]) {
+    const titleKey = (title: string) => title.trim().toLowerCase();
+    const distinctTitles = Array.from(
+      new Map(aiMeals.map((m) => [titleKey(m.title), m.title.trim()])).values(),
+    );
+
+    const existing = await this.prisma.meal.findMany({
+      where: { title: { in: distinctTitles, mode: "insensitive" } },
     });
 
-    if (existing) {
-      return existing;
-    }
+    const byTitle = new Map(existing.map((m) => [titleKey(m.title), m]));
 
-    return this.prisma.meal.create({
-      data: {
+    const toCreate: Prisma.MealCreateManyInput[] = [];
+    const queued = new Set<string>();
+    for (const aiMeal of aiMeals) {
+      const key = titleKey(aiMeal.title);
+      if (byTitle.has(key) || queued.has(key)) {
+        continue;
+      }
+      queued.add(key);
+      toCreate.push({
         title: aiMeal.title.trim(),
         description: aiMeal.description || null,
         prepTimeMinutes: Number(aiMeal.prepTimeMinutes) || 20,
@@ -795,7 +806,26 @@ export class MealPlansService {
         ingredients: Array.isArray(aiMeal.ingredients)
           ? (aiMeal.ingredients as any)
           : [],
-      },
+      });
+    }
+
+    if (toCreate.length > 0) {
+      const created = await this.prisma.meal.createManyAndReturn({
+        data: toCreate,
+      });
+      for (const meal of created) {
+        byTitle.set(titleKey(meal.title), meal);
+      }
+    }
+
+    return aiMeals.map((aiMeal) => {
+      const meal = byTitle.get(titleKey(aiMeal.title));
+      if (!meal) {
+        throw new Error(
+          `Failed to resolve generated meal "${aiMeal.title}" to a catalog record.`,
+        );
+      }
+      return meal;
     });
   }
 

@@ -127,6 +127,12 @@ describe("MealPlansService", () => {
           id: `meal-generated-${Math.random()}`,
           ...args.data,
         })),
+        createManyAndReturn: jest.fn().mockImplementation((args) =>
+          args.data.map((data: any, index: number) => ({
+            id: `meal-generated-${index}`,
+            ...data,
+          })),
+        ),
       },
       mealPlan: {
         update: jest.fn().mockResolvedValue({}),

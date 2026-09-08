@@ -45,5 +45,9 @@ export const envValidationSchema = Joi.object({
   CHATGPT_OPENAI_KEY: Joi.string().allow('').optional(),
   OPENAI_API_KEY: Joi.string().allow('').optional(),
   OPENAI_MODEL: Joi.string().default('gpt-4o-mini'),
+  OPENAI_TIMEOUT_MS: Joi.number().default(120000),
+  OPENAI_MAX_RETRIES: Joi.number().default(2),
+  OPENAI_MAX_MEALS_PER_REQUEST: Joi.number().min(1).default(7),
+  OPENAI_MAX_PARALLEL_REQUESTS: Joi.number().min(1).default(8),
 });
 

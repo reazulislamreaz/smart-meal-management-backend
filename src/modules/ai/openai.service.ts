@@ -166,11 +166,47 @@ export interface GenerateRecommendationsOptions {
   storeModifier?: StoreModifier;
 }
 
+/** A single meal the plan has to fill: one meal type on one day. */
+type PlanSlot = { dayOfWeek: number; mealType: string };
+
+/** Meal types a generated meal can be matched to a slot by. */
+const ALIGNABLE_MEAL_TYPES = ["BREAKFAST", "LUNCH", "DINNER"];
+
+function normalizeMealType(mealType?: string): string {
+  return (mealType || "").trim().toUpperCase();
+}
+
+function countSlotsByType(slots: PlanSlot[]): {
+  breakfast: number;
+  lunch: number;
+  dinner: number;
+} {
+  const counts = { breakfast: 0, lunch: 0, dinner: 0 };
+
+  for (const slot of slots) {
+    switch (normalizeMealType(slot.mealType)) {
+      case "BREAKFAST":
+        counts.breakfast += 1;
+        break;
+      case "LUNCH":
+        counts.lunch += 1;
+        break;
+      case "DINNER":
+        counts.dinner += 1;
+        break;
+    }
+  }
+
+  return counts;
+}
+
 @Injectable()
 export class OpenAiService {
   private readonly logger = new Logger(OpenAiService.name);
   private openai: OpenAI | null = null;
   private model: string;
+  private readonly maxMealsPerRequest: number;
+  private readonly maxParallelRequests: number;
 
   constructor(private readonly configService: ConfigService) {
     const apiKey =
@@ -179,9 +215,20 @@ export class OpenAiService {
 
     this.model =
       this.configService.get<string>("OPENAI_MODEL") || "gpt-4o-mini";
+    this.maxMealsPerRequest =
+      this.configService.get<number>("OPENAI_MAX_MEALS_PER_REQUEST") ?? 7;
+    this.maxParallelRequests =
+      this.configService.get<number>("OPENAI_MAX_PARALLEL_REQUESTS") ?? 8;
 
     if (apiKey && apiKey.trim() !== "" && !apiKey.startsWith("your_")) {
-      this.openai = new OpenAI({ apiKey: apiKey.trim() });
+      this.openai = new OpenAI({
+        apiKey: apiKey.trim(),
+        // Completion latency scales with requested meal count; without an explicit
+        // ceiling the SDK would hold a request open for its 10 minute default.
+        timeout:
+          this.configService.get<number>("OPENAI_TIMEOUT_MS") ?? 120_000,
+        maxRetries: this.configService.get<number>("OPENAI_MAX_RETRIES") ?? 2,
+      });
       this.logger.log(`OpenAI Service initialized with model: ${this.model}`);
     } else {
       this.logger.warn(
@@ -196,8 +243,339 @@ export class OpenAiService {
 
   /**
    * Generates a weekly AI meal plan with high variety, balanced nutrition, and anti-repetition rules.
+   *
+   * Completion latency is dominated by the number of meals a single request has to write out,
+   * so large plans are split into independent segments (grouped by meal type, then capped at
+   * `OPENAI_MAX_MEALS_PER_REQUEST` slots) and generated concurrently. Plans small enough to fit
+   * in one segment are sent as a single request, unchanged.
    */
   async generateMealPlan(
+    options: GeneratePlanOptions,
+  ): Promise<AiGeneratedPlanResult> {
+    if (!this.openai) {
+      throw new Error("OpenAI client is not configured.");
+    }
+
+    const mealSlots = options.overrides?.mealSlots ?? [];
+    const groups = this.groupSlotsIntoSegments(mealSlots);
+
+    let plan: AiGeneratedPlanResult;
+
+    if (groups.length <= 1) {
+      plan = await this.generatePlanSegment(options);
+    } else {
+      const segments = this.buildSegmentOptions(
+        options,
+        groups,
+        mealSlots.length,
+      );
+
+      this.logger.log(
+        `Splitting ${mealSlots.length}-meal plan into ${segments.length} parallel OpenAI requests (${segments.map((s) => s.label).join(", ")}), max ${this.maxParallelRequests} concurrent...`,
+      );
+
+      const results = await this.runWithConcurrency(segments, (segment) =>
+        this.generatePlanSegment(segment.options),
+      );
+
+      plan = this.mergeSegmentResults(results);
+    }
+
+    return this.backfillMissingMeals(options, plan);
+  }
+
+  /**
+   * Batches slots into one request per meal type, split again so that no single request
+   * has to write out more than `OPENAI_MAX_MEALS_PER_REQUEST` meals.
+   *
+   * Slot assignments are what let a segment know exactly which meals to produce, so a plan
+   * without them — or one small enough to fit a single request — yields at most one batch
+   * and takes the unsplit path.
+   */
+  private groupSlotsIntoSegments(slots: PlanSlot[]): PlanSlot[][] {
+    const chunkSize = Math.max(1, this.maxMealsPerRequest);
+
+    if (slots.length === 0) {
+      return [];
+    }
+    if (slots.length <= chunkSize) {
+      return [slots];
+    }
+
+    const slotsByType = new Map<string, PlanSlot[]>();
+    for (const slot of slots) {
+      const key = normalizeMealType(slot.mealType);
+      const bucket = slotsByType.get(key);
+      if (bucket) {
+        bucket.push(slot);
+      } else {
+        slotsByType.set(key, [slot]);
+      }
+    }
+
+    const groups: PlanSlot[][] = [];
+    for (const typeSlots of slotsByType.values()) {
+      for (let i = 0; i < typeSlots.length; i += chunkSize) {
+        groups.push(typeSlots.slice(i, i + chunkSize));
+      }
+    }
+
+    return groups;
+  }
+
+  /**
+   * Expands each slot batch into a self-contained request: its own slot schedule, per-type
+   * frequency, proportional share of the budget, and whole-plan context for the fields that
+   * describe the plan as a whole.
+   */
+  private buildSegmentOptions(
+    options: GeneratePlanOptions,
+    groups: PlanSlot[][],
+    totalMeals: number,
+  ): Array<{ label: string; options: GeneratePlanOptions }> {
+    const overrides = options.overrides ?? {};
+    const weeklyBudget =
+      overrides.weeklyBudget || options.user.weeklyBudget || 150.0;
+    const fullFrequency = overrides.mealFrequency ||
+      options.user.mealFrequency || { breakfast: 0, lunch: 0, dinner: 0 };
+    const daysCount = overrides.daysCount || options.user.plannedDaysCount || 7;
+    const currency =
+      options.storeModifier?.currency ||
+      overrides.currency ||
+      options.user.currency ||
+      "USD";
+
+    return groups.map((slots, index) => {
+      const frequency = countSlotsByType(slots);
+      const mealTypes = Array.from(
+        new Set(slots.map((slot) => normalizeMealType(slot.mealType))),
+      );
+      // Proportional share of the overall budget so segment costs sum back to the target.
+      const segmentBudget =
+        Math.round(
+          ((weeklyBudget * slots.length) / Math.max(totalMeals, 1)) * 100,
+        ) / 100;
+
+      return {
+        label: `${mealTypes.join("/")}x${slots.length}`,
+        options: {
+          ...options,
+          overrides: {
+            ...overrides,
+            mealSlots: slots,
+            mealFrequency: frequency,
+            mealTypes,
+            weeklyBudget: Math.max(segmentBudget, 1),
+            customNotes: this.buildSegmentNotes({
+              segmentIndex: index,
+              segmentCount: groups.length,
+              segmentMeals: slots.length,
+              mealTypes,
+              totalMeals,
+              fullFrequency,
+              daysCount,
+              currency,
+              weeklyBudget,
+              segmentBudget,
+              userNotes: overrides.customNotes,
+            }),
+          },
+        },
+      };
+    });
+  }
+
+  /**
+   * Re-requests only the meals the model failed to produce.
+   *
+   * The model occasionally returns fewer meals than asked for. Callers align generated meals
+   * onto concrete slots and reject the whole plan when any meal type comes up short, so a
+   * single missing meal would otherwise throw away an entire generation and silently
+   * downgrade the plan to catalog matching. Filling just the gaps costs one short request.
+   */
+  private async backfillMissingMeals(
+    options: GeneratePlanOptions,
+    plan: AiGeneratedPlanResult,
+  ): Promise<AiGeneratedPlanResult> {
+    const mealSlots = options.overrides?.mealSlots ?? [];
+    const unfilled = this.findUnfilledSlots(mealSlots, plan);
+
+    if (unfilled.length === 0) {
+      return plan;
+    }
+
+    const missing = countSlotsByType(unfilled);
+    this.logger.warn(
+      `OpenAI returned ${plan.meals?.length ?? 0} of ${mealSlots.length} requested meals; re-requesting ${unfilled.length} unfilled slot(s) (${missing.breakfast} breakfast, ${missing.lunch} lunch, ${missing.dinner} dinner)...`,
+    );
+
+    const segments = this.buildSegmentOptions(
+      options,
+      this.groupSlotsIntoSegments(unfilled),
+      mealSlots.length,
+    );
+    const results = await this.runWithConcurrency(segments, (segment) =>
+      this.generatePlanSegment(segment.options),
+    );
+
+    return this.mergeSegmentResults([plan, ...results]);
+  }
+
+  /**
+   * Determines which requested slots the generated meals cannot cover, mirroring how the
+   * caller assigns meals to slots: meals of a matching type first, then any meal whose type
+   * falls outside breakfast/lunch/dinner as a wildcard.
+   */
+  private findUnfilledSlots(
+    mealSlots: PlanSlot[],
+    plan: AiGeneratedPlanResult,
+  ): PlanSlot[] {
+    if (mealSlots.length === 0) {
+      return [];
+    }
+
+    const generatedByType = new Map<string, number>();
+    let wildcards = 0;
+    for (const meal of plan.meals ?? []) {
+      const key = normalizeMealType(meal.mealType);
+      if (ALIGNABLE_MEAL_TYPES.includes(key)) {
+        generatedByType.set(key, (generatedByType.get(key) ?? 0) + 1);
+      } else {
+        wildcards += 1;
+      }
+    }
+
+    const slotsByType = new Map<string, PlanSlot[]>();
+    for (const slot of mealSlots) {
+      const key = normalizeMealType(slot.mealType);
+      const bucket = slotsByType.get(key);
+      if (bucket) {
+        bucket.push(slot);
+      } else {
+        slotsByType.set(key, [slot]);
+      }
+    }
+
+    const unfilled: PlanSlot[] = [];
+    for (const [key, slots] of slotsByType) {
+      let shortfall = slots.length - (generatedByType.get(key) ?? 0);
+      if (shortfall <= 0) {
+        continue;
+      }
+
+      const coveredByWildcards = Math.min(wildcards, shortfall);
+      wildcards -= coveredByWildcards;
+      shortfall -= coveredByWildcards;
+
+      if (shortfall > 0) {
+        unfilled.push(...slots.slice(slots.length - shortfall));
+      }
+    }
+
+    return unfilled;
+  }
+
+  /**
+   * Gives a segment enough whole-plan context to emit plan-level fields (title, overview,
+   * daily calories) that describe the complete week rather than just its own slice.
+   */
+  private buildSegmentNotes(params: {
+    segmentIndex: number;
+    segmentCount: number;
+    segmentMeals: number;
+    mealTypes: string[];
+    totalMeals: number;
+    fullFrequency: { breakfast: number; lunch: number; dinner: number };
+    daysCount: number;
+    currency: string;
+    weeklyBudget: number;
+    segmentBudget: number;
+    userNotes?: string;
+  }): string {
+    const {
+      segmentIndex,
+      segmentCount,
+      segmentMeals,
+      mealTypes,
+      totalMeals,
+      fullFrequency,
+      daysCount,
+      currency,
+      weeklyBudget,
+      segmentBudget,
+      userNotes,
+    } = params;
+
+    const segmentNote = `SEGMENTED GENERATION CONTEXT (internal orchestration detail):
+- You are producing segment ${segmentIndex + 1} of ${segmentCount} of ONE single weekly meal plan.
+- The COMPLETE plan covers ${totalMeals} meals across ${daysCount} day(s): ${fullFrequency.breakfast} breakfast, ${fullFrequency.lunch} lunch, ${fullFrequency.dinner} dinner, with an overall budget of ${currency} ${weeklyBudget.toFixed(2)}.
+- YOUR segment must output EXACTLY the ${segmentMeals} ${mealTypes.join("/")} meal(s) listed in the slot schedule above and nothing else.
+- "totalEstimatedCost" must cover ONLY your ${segmentMeals} meal(s) and should approximate ${currency} ${segmentBudget.toFixed(2)} (this segment's proportional share).
+- "planTitle" and "planOverview" must describe the COMPLETE weekly plan across all meal types, not just your segment.
+- "dailyTargetCalories" must reflect a FULL day of eating for the household across all meal types, not just your segment.
+- Sibling segments cover the other days and meal types of the same week. Choose distinctive, clearly differentiated recipes for the specific days you were assigned so that no recipe title or core concept can collide with another segment.`;
+
+    return userNotes && userNotes.trim().length > 0
+      ? `${userNotes.trim()}\n\n${segmentNote}`
+      : segmentNote;
+  }
+
+  /**
+   * Recombines segment responses into the single plan shape the caller expects.
+   */
+  private mergeSegmentResults(
+    results: AiGeneratedPlanResult[],
+  ): AiGeneratedPlanResult {
+    const meals = results.flatMap((r) => r.meals ?? []);
+    const summedCost = results.reduce(
+      (acc, r) => acc + (Number(r.totalEstimatedCost) || 0),
+      0,
+    );
+    const dailyCalories = results
+      .map((r) => Number(r.dailyTargetCalories))
+      .filter((value) => Number.isFinite(value) && value > 0);
+
+    return {
+      planTitle: results.find((r) => r.planTitle?.trim())?.planTitle,
+      planOverview: results.find((r) => r.planOverview?.trim())?.planOverview,
+      currency: results.find((r) => r.currency)?.currency,
+      // Segments each report a whole-day target; the largest is the best whole-day estimate.
+      dailyTargetCalories:
+        dailyCalories.length > 0 ? Math.max(...dailyCalories) : undefined,
+      totalEstimatedCost:
+        summedCost > 0
+          ? Math.round(summedCost * 100) / 100
+          : meals.reduce((acc, m) => acc + (Number(m.estimatedCost) || 0), 0),
+      meals,
+    };
+  }
+
+  /**
+   * Runs tasks in parallel with a bounded number of in-flight requests, preserving input order.
+   */
+  private async runWithConcurrency<T, R>(
+    items: T[],
+    worker: (item: T, index: number) => Promise<R>,
+  ): Promise<R[]> {
+    const limit = Math.max(1, Math.min(this.maxParallelRequests, items.length));
+    const results = new Array<R>(items.length);
+    let cursor = 0;
+
+    const runners = Array.from({ length: limit }, async () => {
+      while (true) {
+        const index = cursor++;
+        if (index >= items.length) {
+          return;
+        }
+        results[index] = await worker(items[index], index);
+      }
+    });
+
+    await Promise.all(runners);
+    return results;
+  }
+
+  private async generatePlanSegment(
     options: GeneratePlanOptions,
   ): Promise<AiGeneratedPlanResult> {
     if (!this.openai) {

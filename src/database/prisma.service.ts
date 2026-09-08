@@ -24,6 +24,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       try {
         await this.$connect();
         await this.$queryRaw`SELECT 1`;
+        await this.ensureExpressionIndexes();
         return;
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
@@ -41,6 +42,27 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
         await new Promise((resolve) => setTimeout(resolve, CONNECT_RETRY_DELAY_MS * attempt));
       }
+    }
+  }
+
+  /**
+   * Creates indexes that cannot be expressed in the Prisma schema.
+   *
+   * Prisma has no syntax for expression indexes, so `prisma db push` neither creates nor
+   * drops them. Meal plan generation looks recipes up with a case-insensitive title match,
+   * which Prisma compiles to `LOWER("title") IN (...)` — a sequential scan over the whole
+   * catalog without this index. Creation is idempotent and never fatal.
+   */
+  private async ensureExpressionIndexes() {
+    try {
+      await this.$executeRawUnsafe(
+        'CREATE INDEX IF NOT EXISTS "meals_title_lower_idx" ON "meals" (LOWER("title"))',
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      PrismaService.logger.warn(
+        `Could not ensure expression index "meals_title_lower_idx": ${reason}`,
+      );
     }
   }
 
